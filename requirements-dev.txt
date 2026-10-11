@@ -1,0 +1,4 @@
+# Local development / test tooling. NOT packaged into the Lambda (see src/requirements.txt).
+boto3
+pytest
+cfn-lint

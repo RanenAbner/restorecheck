@@ -1,0 +1,290 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  RestoreCheck - automated backup verification. On a schedule, restores the latest
+  RDS snapshot into a temporary instance, runs integrity checks, records the result,
+  alerts on failure and deletes the temporary instance.
+
+# ---------------------------------------------------------------------------
+# Parameters: values supplied at deploy time, so one template serves both the
+# LocalStack dev stack and the real AWS stack (see samconfig.toml).
+# ---------------------------------------------------------------------------
+Parameters:
+  Stage:
+    Type: String
+    Default: prod
+    AllowedValues: [dev, prod]
+    Description: dev = the Lambda targets LocalStack endpoints; prod = real AWS.
+
+  SourceDbInstanceId:
+    Type: String
+    Description: Identifier of the RDS instance whose snapshots are verified.
+
+  TempInstancePrefix:
+    Type: String
+    Default: restorecheck-tmp-
+    AllowedPattern: "^[a-z][a-z0-9-]{1,30}-$"
+    Description: >
+      Name prefix for the temporary restored instances. The IAM policy only allows
+      restoring into / deleting instances whose name starts with this prefix.
+
+  TempInstanceClass:
+    Type: String
+    Default: db.t3.micro
+    Description: Instance class for the temporary restored instance (keep it small).
+
+  ScheduleExpression:
+    Type: String
+    Default: cron(0 2 * * ? *)
+    Description: EventBridge schedule (UTC). Default is 02:00 UTC every day.
+
+  ScheduleState:
+    Type: String
+    Default: ENABLED
+    AllowedValues: [ENABLED, DISABLED]
+    Description: DISABLED deploys the schedule but never fires it (manual invokes only).
+
+  AlertEmail:
+    Type: String
+    Default: ""
+    Description: Optional email address subscribed to failure alerts. Empty = no subscription.
+
+  MetricNamespace:
+    Type: String
+    Default: RestoreCheck
+    Description: CloudWatch namespace for custom metrics. The IAM policy is scoped to it.
+
+  ReportRetentionDays:
+    Type: Number
+    Default: 90
+    MinValue: 1
+    Description: Days to keep verification reports in S3 before they expire.
+
+  LogRetentionDays:
+    Type: Number
+    Default: 30
+    AllowedValues: [1, 3, 5, 7, 14, 30, 60, 90, 180, 365]
+    Description: Days to keep the Lambda's CloudWatch logs.
+
+Conditions:
+  IsDev: !Equals [!Ref Stage, dev]
+  HasAlertEmail: !Not [!Equals [!Ref AlertEmail, ""]]
+
+Resources:
+  # -------------------------------------------------------------------------
+  # Lambda orchestrator + its EventBridge schedule
+  # -------------------------------------------------------------------------
+  VerifierFunction:
+    Type: AWS::Serverless::Function
+    DependsOn: VerifierLogGroup
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-verifier"
+      Description: Restores the latest RDS snapshot, verifies it, records the result, tears down.
+      CodeUri: src/
+      Handler: handler.lambda_handler
+      Runtime: python3.12
+      Architectures: [x86_64]
+      MemorySize: 256
+      # 900 s is the Lambda maximum. A real RDS restore can take longer than this,
+      # see the "open design decisions" note in README.md.
+      Timeout: 900
+      Role: !GetAtt VerifierRole.Arn
+      # EventBridge invokes Lambda asynchronously, and async invokes are retried
+      # twice by default. A retry here would start a second restore, so turn it off.
+      EventInvokeConfig:
+        MaximumRetryAttempts: 0
+      Environment:
+        Variables:
+          RESTORECHECK_DEV: !If [IsDev, "true", "false"]
+          SOURCE_DB_INSTANCE_ID: !Ref SourceDbInstanceId
+          TEMP_INSTANCE_PREFIX: !Ref TempInstancePrefix
+          TEMP_INSTANCE_CLASS: !Ref TempInstanceClass
+          RESULTS_TABLE: !Ref ResultsTable
+          REPORTS_BUCKET: !Ref ReportsBucket
+          ALERT_TOPIC_ARN: !Ref AlertTopic
+          METRIC_NAMESPACE: !Ref MetricNamespace
+      Events:
+        VerificationSchedule:
+          # SAM expands this into an AWS::Events::Rule plus the
+          # AWS::Lambda::Permission that lets EventBridge invoke the function.
+          Type: Schedule
+          Properties:
+            Description: Triggers a RestoreCheck backup-verification run.
+            Schedule: !Ref ScheduleExpression
+            State: !Ref ScheduleState
+
+  # Declared explicitly (instead of letting Lambda auto-create it) so the logs
+  # expire and the role can be scoped to exactly this log group.
+  VerifierLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AWS::StackName}-verifier"
+      RetentionInDays: !Ref LogRetentionDays
+
+  # -------------------------------------------------------------------------
+  # IAM: execution role + custom least-privilege policy
+  # -------------------------------------------------------------------------
+  VerifierRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Execution role for the RestoreCheck verifier Lambda.
+      # Trust policy: WHO may assume this role (only the Lambda service).
+      AssumeRolePolicyDocument:
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": { "Service": "lambda.amazonaws.com" },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        }
+      # Permissions policy: WHAT the role may do. Only the custom policy below -
+      # no AWS-managed policies, no wildcards on actions.
+      ManagedPolicyArns:
+        - !Ref VerifierPolicy
+
+  # The custom JSON policy (course requirement). YAML is a superset of JSON, so the
+  # document is written in plain IAM JSON; {"Fn::Sub": ...} is the long form of !Sub.
+  VerifierPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Least-privilege permissions for the RestoreCheck verifier Lambda.
+      PolicyDocument:
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "WriteOwnLogs",
+              "Effect": "Allow",
+              "Action": ["logs:CreateLogStream", "logs:PutLogEvents"],
+              "Resource": { "Fn::GetAtt": ["VerifierLogGroup", "Arn"] }
+            },
+            {
+              "Sid": "DiscoverSnapshotsAndInstances",
+              "Effect": "Allow",
+              "Action": ["rds:DescribeDBSnapshots", "rds:DescribeDBInstances"],
+              "Resource": "*"
+            },
+            {
+              "Sid": "RestoreSnapshotIntoTempInstance",
+              "Effect": "Allow",
+              "Action": "rds:RestoreDBInstanceFromDBSnapshot",
+              "Resource": [
+                { "Fn::Sub": "arn:${AWS::Partition}:rds:${AWS::Region}:${AWS::AccountId}:db:${TempInstancePrefix}*" },
+                { "Fn::Sub": "arn:${AWS::Partition}:rds:${AWS::Region}:${AWS::AccountId}:snapshot:*" },
+                { "Fn::Sub": "arn:${AWS::Partition}:rds:${AWS::Region}:${AWS::AccountId}:subgrp:*" },
+                { "Fn::Sub": "arn:${AWS::Partition}:rds:${AWS::Region}:${AWS::AccountId}:og:*" },
+                { "Fn::Sub": "arn:${AWS::Partition}:rds:${AWS::Region}:${AWS::AccountId}:pg:*" }
+              ]
+            },
+            {
+              "Sid": "TagAndDeleteOnlyTempInstances",
+              "Effect": "Allow",
+              "Action": ["rds:AddTagsToResource", "rds:DeleteDBInstance"],
+              "Resource": { "Fn::Sub": "arn:${AWS::Partition}:rds:${AWS::Region}:${AWS::AccountId}:db:${TempInstancePrefix}*" }
+            },
+            {
+              "Sid": "RecordResult",
+              "Effect": "Allow",
+              "Action": "dynamodb:PutItem",
+              "Resource": { "Fn::GetAtt": ["ResultsTable", "Arn"] }
+            },
+            {
+              "Sid": "WriteReport",
+              "Effect": "Allow",
+              "Action": "s3:PutObject",
+              "Resource": { "Fn::Sub": "${ReportsBucket.Arn}/reports/*" }
+            },
+            {
+              "Sid": "AlertOnFailure",
+              "Effect": "Allow",
+              "Action": "sns:Publish",
+              "Resource": { "Ref": "AlertTopic" }
+            },
+            {
+              "Sid": "PublishMetrics",
+              "Effect": "Allow",
+              "Action": "cloudwatch:PutMetricData",
+              "Resource": "*",
+              "Condition": {
+                "StringEquals": { "cloudwatch:namespace": { "Ref": "MetricNamespace" } }
+              }
+            }
+          ]
+        }
+
+  # -------------------------------------------------------------------------
+  # Results: history (DynamoDB), detailed reports (S3), alerts (SNS)
+  # -------------------------------------------------------------------------
+  ResultsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      # On-demand: no capacity to provision, pay per request (~1 write per run).
+      BillingMode: PAY_PER_REQUEST
+      # Partition key = which database, sort key = when. "Latest N runs for db X"
+      # is then a single Query, newest first.
+      AttributeDefinitions:
+        - AttributeName: source_db_id
+          AttributeType: S
+        - AttributeName: run_timestamp
+          AttributeType: S
+      KeySchema:
+        - AttributeName: source_db_id
+          KeyType: HASH
+        - AttributeName: run_timestamp
+          KeyType: RANGE
+
+  ReportsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      # No BucketName: CloudFormation generates a globally unique one.
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireOldReports
+            Status: Enabled
+            Prefix: reports/
+            ExpirationInDays: !Ref ReportRetentionDays
+
+  AlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: RestoreCheck alerts
+
+  AlertEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: HasAlertEmail
+    Properties:
+      TopicArn: !Ref AlertTopic
+      Protocol: email
+      Endpoint: !Ref AlertEmail
+
+Outputs:
+  VerifierFunctionName:
+    Description: Name of the verifier Lambda (use with "lambda invoke").
+    Value: !Ref VerifierFunction
+  VerifierRoleArn:
+    Description: Execution role assumed by the verifier Lambda.
+    Value: !GetAtt VerifierRole.Arn
+  VerifierPolicyArn:
+    Description: The custom least-privilege policy attached to the role.
+    Value: !Ref VerifierPolicy
+  ResultsTableName:
+    Description: DynamoDB table holding pass/fail history.
+    Value: !Ref ResultsTable
+  ReportsBucketName:
+    Description: S3 bucket holding detailed verification reports.
+    Value: !Ref ReportsBucket
+  AlertTopicArn:
+    Description: SNS topic that receives failure alerts.
+    Value: !Ref AlertTopic

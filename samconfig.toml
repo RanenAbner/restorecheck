@@ -1,0 +1,21 @@
+# Saved CLI options for `sam` / `samlocal`, grouped by config environment.
+# Table names are [<config-env>.<command>.parameters].
+version = 0.1
+
+[default.build.parameters]
+# Build inside a Docker image of the python3.12 Lambda runtime, so the build does
+# not depend on which Python version is installed on this machine.
+use_container = true
+
+# --- dev: LocalStack only -------------------------------------------------
+# Always deploy this with `samlocal` (scripts/deploy_local.ps1), never plain `sam`.
+[dev.deploy.parameters]
+stack_name = "restorecheck-dev"
+region = "us-east-1"
+resolve_s3 = true
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = false
+parameter_overrides = "Stage=dev SourceDbInstanceId=restorecheck-source ScheduleState=DISABLED"
+
+# No prod environment yet on purpose: the real-AWS deploy happens once, for the
+# final demo, with `sam deploy --guided`.

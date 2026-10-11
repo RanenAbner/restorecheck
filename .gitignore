@@ -1,0 +1,14 @@
+# SAM build output
+.aws-sam/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Secrets / local config (LOCALSTACK_AUTH_TOKEN lives in .env — never commit it)
+.env
+
+# LocalStack state
+volume/

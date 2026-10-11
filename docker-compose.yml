@@ -1,0 +1,18 @@
+# LocalStack: a local emulator of the AWS APIs, used for all development.
+#   docker compose up -d      start
+#   docker compose down       stop (state is discarded)
+services:
+  localstack:
+    # `latest` is fine while learning; pin a version tag once things work so an
+    # upstream release can't change behaviour mid-project.
+    image: localstack/localstack:latest
+    ports:
+      # Bound to 127.0.0.1 so the emulator is not reachable from the network.
+      - "127.0.0.1:4566:4566"            # the single "edge" endpoint for every AWS API
+      - "127.0.0.1:4510-4559:4510-4559"  # ports LocalStack hands out to e.g. RDS databases
+    environment:
+      # Required since LocalStack 2026.03. Comes from .env (see .env.example).
+      - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN:?Copy .env.example to .env and set LOCALSTACK_AUTH_TOKEN}
+    volumes:
+      # LocalStack runs each Lambda in its own container, so it needs the Docker socket.
+      - "/var/run/docker.sock:/var/run/docker.sock"
