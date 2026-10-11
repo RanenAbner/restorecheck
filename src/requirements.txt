@@ -1,0 +1,2 @@
+# Packaged into the Lambda by `sam build`.
+# boto3 is already provided by the python3.12 Lambda runtime, so nothing is needed yet.
