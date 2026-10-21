@@ -298,7 +298,7 @@ add(
   H1("Screenshots"),
   P("Screenshots taken from the deployed system on AWS (ap-southeast-2)."),
   ...[
-    "Figure 2. CloudFormation: the restorecheck and restorecheck-demo-db stacks (CREATE_COMPLETE)",
+    "Figure 2. CloudFormation: the deployed restorecheck and restorecheck-demo-db stacks",
     "Figure 3. Step Functions: graph view of a PASSED execution",
     "Figure 4. Step Functions: graph view of a FAILED execution (ending in BackupNotVerified)",
     "Figure 5. RDS console during a run: the temporary restorecheck-tmp-* instance beside the source database",
