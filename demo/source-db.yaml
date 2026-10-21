@@ -1,0 +1,97 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  RestoreCheck demo - the PostgreSQL database whose backups RestoreCheck verifies.
+  Deliberately a separate stack: in real use this would be an existing production
+  database that RestoreCheck is pointed at, not something RestoreCheck creates.
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC for the database (the default VPC is fine).
+
+  AdminCidr:
+    Type: String
+    AllowedPattern: "^(\\d{1,3}\\.){3}\\d{1,3}/32$"
+    Description: >
+      Your public IP address as a /32. Only this address can reach the database,
+      so scripts/demo_db.py can seed it from your laptop.
+
+  DbInstanceIdentifier:
+    Type: String
+    Default: restorecheck-demo-source
+    Description: Name of the demo database instance.
+
+  DbName:
+    Type: String
+    Default: appdb
+    Description: Database created inside the instance (RestoreCheck's DbName must match).
+
+  InstanceClass:
+    Type: String
+    Default: db.t3.micro
+    Description: Smallest general-purpose class; enough for a demo.
+
+  EngineVersion:
+    Type: String
+    Default: "17"
+    Description: PostgreSQL major version (RDS picks the current minor version).
+
+Resources:
+  SourceDbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: RestoreCheck demo source database - PostgreSQL from the admin IP only
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - Description: PostgreSQL from the admin laptop (seeding / breaking the demo data)
+          IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: !Ref AdminCidr
+
+  SourceDb:
+    Type: AWS::RDS::DBInstance
+    # CloudFormation's default for RDS is to keep a final snapshot on delete,
+    # which would keep costing money after the demo. Delete outright instead.
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      DBInstanceIdentifier: !Ref DbInstanceIdentifier
+      Engine: postgres
+      EngineVersion: !Ref EngineVersion
+      DBInstanceClass: !Ref InstanceClass
+      AllocatedStorage: "20"
+      StorageType: gp2
+      # Encrypted with the AWS-managed aws/rds key, so snapshots are encrypted too.
+      StorageEncrypted: true
+      DBName: !Ref DbName
+      MasterUsername: rc_admin
+      # RDS generates the master password and keeps it in Secrets Manager;
+      # it never appears in this template, the repo or a terminal.
+      ManageMasterUserPassword: true
+      # Reachable from the internet only through the security group above (one IP).
+      PubliclyAccessible: true
+      VPCSecurityGroups:
+        - !GetAtt SourceDbSecurityGroup.GroupId
+      # Daily automated snapshots - the backups RestoreCheck verifies.
+      BackupRetentionPeriod: 1
+      DeleteAutomatedBackups: true
+      DeletionProtection: false
+      MultiAZ: false
+      Tags:
+        - Key: project
+          Value: restorecheck-demo
+
+Outputs:
+  DbInstanceIdentifier:
+    Description: Pass this to RestoreCheck as SourceDbInstanceId.
+    Value: !Ref SourceDb
+  Endpoint:
+    Value: !GetAtt SourceDb.Endpoint.Address
+  Port:
+    Value: !GetAtt SourceDb.Endpoint.Port
+  DbName:
+    Value: !Ref DbName
+  MasterSecretArn:
+    Description: Secrets Manager secret holding the master username and password.
+    Value: !GetAtt SourceDb.MasterUserSecret.SecretArn

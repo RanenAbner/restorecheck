@@ -1,0 +1,128 @@
+{
+  "Comment": "RestoreCheck: restore the latest RDS snapshot into a temporary instance, verify it, always delete it, record the result.",
+  "StartAt": "PrepareRestore",
+  "States": {
+    "PrepareRestore": {
+      "Comment": "Delete leftover temp instances, find the newest snapshot, start restoring it.",
+      "Type": "Task",
+      "Resource": "${VerifierFunctionArn}",
+      "Parameters": {
+        "action": "prepare",
+        "state.$": "$",
+        "execution_start.$": "$$.Execution.StartTime"
+      },
+      "ResultPath": "$.run",
+      "Catch": [
+        { "ErrorEquals": ["States.ALL"], "ResultPath": "$.error", "Next": "Teardown" }
+      ],
+      "Next": "WaitForRestore"
+    },
+    "WaitForRestore": {
+      "Type": "Wait",
+      "Seconds": 60,
+      "Next": "CheckRestoreStatus"
+    },
+    "CheckRestoreStatus": {
+      "Comment": "Fails (and goes to Teardown) if the restore broke or exceeded MaxRestoreMinutes.",
+      "Type": "Task",
+      "Resource": "${VerifierFunctionArn}",
+      "Parameters": {
+        "action": "poll",
+        "state.$": "$",
+        "execution_start.$": "$$.Execution.StartTime"
+      },
+      "ResultPath": "$.restore",
+      "Catch": [
+        { "ErrorEquals": ["States.ALL"], "ResultPath": "$.error", "Next": "Teardown" }
+      ],
+      "Next": "IsRestoreReady"
+    },
+    "IsRestoreReady": {
+      "Type": "Choice",
+      "Choices": [
+        { "Variable": "$.restore.ready", "BooleanEquals": true, "Next": "RunIntegrityChecks" }
+      ],
+      "Default": "WaitForRestore"
+    },
+    "RunIntegrityChecks": {
+      "Comment": "Runs inside the VPC: connects to the restored database and runs the SQL checks.",
+      "Type": "Task",
+      "Resource": "${CheckerFunctionArn}",
+      "Parameters": {
+        "run.$": "$.run",
+        "restore.$": "$.restore"
+      },
+      "ResultPath": "$.checks",
+      "TimeoutSeconds": 300,
+      "Catch": [
+        { "ErrorEquals": ["States.ALL"], "ResultPath": "$.error", "Next": "Teardown" }
+      ],
+      "Next": "Teardown"
+    },
+    "Teardown": {
+      "Comment": "Every path that may have started a restore comes through here. The long retry covers an instance that cannot be deleted yet (e.g. still 'creating'); anything else gives up quickly so the alert isn't delayed.",
+      "Type": "Task",
+      "Resource": "${VerifierFunctionArn}",
+      "Parameters": {
+        "action": "teardown",
+        "state.$": "$",
+        "execution_start.$": "$$.Execution.StartTime"
+      },
+      "ResultPath": "$.teardown",
+      "Retry": [
+        {
+          "ErrorEquals": ["InvalidDBInstanceStateFault"],
+          "IntervalSeconds": 60,
+          "MaxAttempts": 8,
+          "BackoffRate": 1.5
+        },
+        {
+          "ErrorEquals": ["States.ALL"],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 2,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        { "ErrorEquals": ["States.ALL"], "ResultPath": "$.teardown_error", "Next": "RecordResult" }
+      ],
+      "Next": "RecordResult"
+    },
+    "RecordResult": {
+      "Comment": "S3 report, DynamoDB history row, CloudWatch metrics, SNS alert on failure.",
+      "Type": "Task",
+      "Resource": "${VerifierFunctionArn}",
+      "Parameters": {
+        "action": "record",
+        "state.$": "$",
+        "execution_start.$": "$$.Execution.StartTime"
+      },
+      "ResultPath": "$.result",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "IntervalSeconds": 10,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Next": "DidBackupPass"
+    },
+    "DidBackupPass": {
+      "Type": "Choice",
+      "Choices": [
+        { "Variable": "$.result.status", "StringEquals": "PASSED", "Next": "BackupVerified" }
+      ],
+      "Default": "BackupNotVerified"
+    },
+    "BackupVerified": {
+      "Type": "Succeed"
+    },
+    "BackupNotVerified": {
+      "Comment": "Marks the execution red in the console. The alert and report were already sent.",
+      "Type": "Fail",
+      "Error": "BackupNotVerified",
+      "Cause": "The backup failed verification or the pipeline errored. See the SNS alert and the S3 report."
+    }
+  }
+}

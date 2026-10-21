@@ -1,5 +1,5 @@
 [tool.pytest.ini_options]
 # Lambda's CodeUri is src/, so inside Lambda modules import as `import config`.
-# Putting src/ on the path makes tests import them the same way.
-pythonpath = ["src"]
+# Putting src/ on the path makes tests import them the same way (scripts/ for demo_data).
+pythonpath = ["src", "scripts"]
 testpaths = ["tests"]

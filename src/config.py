@@ -29,6 +29,11 @@ class Settings:
     reports_bucket: str
     alert_topic_arn: str
     metric_namespace: str
+    # Where temporary instances are placed so the checker Lambda can reach them.
+    # None = RDS defaults (used by the unit tests and LocalStack).
+    restore_subnet_group: str | None = None
+    restore_security_group_id: str | None = None
+    max_restore_minutes: int = 60
 
 
 def _required(env, name):
@@ -66,4 +71,7 @@ def load_settings(env=None):
         reports_bucket=_required(env, "REPORTS_BUCKET"),
         alert_topic_arn=_required(env, "ALERT_TOPIC_ARN"),
         metric_namespace=env.get("METRIC_NAMESPACE", "RestoreCheck"),
+        restore_subnet_group=env.get("RESTORE_SUBNET_GROUP") or None,
+        restore_security_group_id=env.get("RESTORE_SECURITY_GROUP_ID") or None,
+        max_restore_minutes=int(env.get("MAX_RESTORE_MINUTES", "60")),
     )

@@ -1,4 +1,7 @@
 # Local development / test tooling. NOT packaged into the Lambda (see src/requirements.txt).
+-r src/requirements.txt
 boto3
 pytest
 cfn-lint
+# In-process fake of the AWS APIs, used by the unit tests (no Docker, no AWS account).
+moto
