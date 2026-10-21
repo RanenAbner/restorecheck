@@ -15,3 +15,7 @@ volume/
 
 # Local preview server config (machine-specific paths)
 .claude/launch.json
+
+# Report build dependencies
+report/node_modules/
+report/package-lock.json
