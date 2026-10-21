@@ -10,7 +10,7 @@ const fs = require("fs");
 const path = require("path");
 const {
   AlignmentType, BorderStyle, Document, ExternalHyperlink, Footer, Header, HeadingLevel, ImageRun,
-  LevelFormat, Packer, PageNumber, Paragraph, ShadingType, Table, TableCell, TableRow,
+  LevelFormat, Packer, PageNumber, Paragraph, Table, TableCell, TableRow,
   TextRun, WidthType,
 } = require("docx");
 
@@ -47,7 +47,8 @@ function c(...nums) {
 const results = JSON.parse(fs.readFileSync(path.join(ROOT, "results", "scenarios.json"), "utf8"));
 
 // ---------------------------------------------------------------- text helpers
-const LINK = { color: "0563C1", underline: {} };
+const BLACK = "000000";
+const LINK = { color: BLACK, underline: {} };
 // Inline markup: **bold**, *italic*, `code`, and bare URLs become hyperlinks.
 function runs(text, base = {}) {
   const out = [];
@@ -79,8 +80,23 @@ function runs(text, base = {}) {
 
 const P = (text, opts = {}) =>
   new Paragraph({ children: runs(text), alignment: AlignmentType.JUSTIFIED, spacing: { after: 140 }, ...opts });
-const H1 = (text) => new Paragraph({ text, heading: HeadingLevel.HEADING_1 });
-const H2 = (text) => new Paragraph({ text, heading: HeadingLevel.HEADING_2 });
+// Numbered section headings (1, 1.1, ...); the title, references and appendix stay unnumbered.
+const UNNUMBERED = new Set(["Title", "References"]);
+let h1Count = 0;
+let h2Count = 0;
+const H1 = (text) => {
+  let label = text;
+  if (!UNNUMBERED.has(text) && !text.startsWith("Appendix")) {
+    h1Count += 1;
+    h2Count = 0;
+    label = `${h1Count}.  ${text}`;
+  }
+  return new Paragraph({ text: label, heading: HeadingLevel.HEADING_1 });
+};
+const H2 = (text) => {
+  h2Count += 1;
+  return new Paragraph({ text: `${h1Count}.${h2Count}  ${text}`, heading: HeadingLevel.HEADING_2 });
+};
 const bullet = (text) =>
   new Paragraph({ children: runs(text), numbering: { reference: "bullets", level: 0 }, spacing: { after: 80 } });
 let listInstance = 0;
@@ -100,17 +116,16 @@ const centered = (text, base = {}, after = 60) =>
 const caption = (text) =>
   new Paragraph({ children: runs(text, { italics: true, size: 20 }), alignment: AlignmentType.CENTER, spacing: { after: 240 } });
 
-const dashed = { style: BorderStyle.DASHED, size: 8, color: "9CA3AF", space: 10 };
+const dashed = { style: BorderStyle.DASHED, size: 6, color: BLACK, space: 10 };
 const placeholder = (text) =>
   new Paragraph({
-    children: [new TextRun({ text, italics: true, color: "6B7280" })],
+    children: [new TextRun({ text, italics: true })],
     alignment: AlignmentType.CENTER,
     border: { top: dashed, bottom: dashed, left: dashed, right: dashed },
-    shading: { type: ShadingType.CLEAR, fill: "F3F4F6", color: "auto" },
     spacing: { before: 240, after: 120, line: 360 },
   });
 
-const cellBorder = { style: BorderStyle.SINGLE, size: 4, color: "A0A7AE" };
+const cellBorder = { style: BorderStyle.SINGLE, size: 4, color: BLACK };
 function table(widths, header, rows) {
   const row = (cells, isHeader) =>
     new TableRow({
@@ -121,7 +136,6 @@ function table(widths, header, rows) {
           new TableCell({
             width: { size: widths[i], type: WidthType.DXA },
             borders: { top: cellBorder, bottom: cellBorder, left: cellBorder, right: cellBorder },
-            shading: isHeader ? { type: ShadingType.CLEAR, fill: "DCE6F2", color: "auto" } : undefined,
             margins: { top: 60, bottom: 60, left: 100, right: 100 },
             children: [new Paragraph({ children: runs(String(cell), { size: 20, bold: isHeader }) })],
           }),
@@ -423,17 +437,17 @@ const doc = new Document({
   creator: TEAM.map(([, name]) => name).join(", "),
   title: TITLE,
   styles: {
-    default: { document: { run: { font: "Times New Roman", size: 24 } } },
+    default: { document: { run: { font: "Times New Roman", size: 24, color: BLACK } } },
     paragraphStyles: [
       {
         id: "Heading1", name: "Heading 1", basedOn: "Normal", next: "Normal", quickFormat: true,
-        run: { size: 30, bold: true, color: "1F3864" },
-        paragraph: { spacing: { before: 360, after: 140 }, keepNext: true, outlineLevel: 0 },
+        run: { font: "Times New Roman", size: 28, bold: true, color: BLACK },
+        paragraph: { spacing: { before: 360, after: 160 }, keepNext: true, outlineLevel: 0 },
       },
       {
         id: "Heading2", name: "Heading 2", basedOn: "Normal", next: "Normal", quickFormat: true,
-        run: { size: 26, bold: true, color: "2F5496" },
-        paragraph: { spacing: { before: 240, after: 100 }, keepNext: true, outlineLevel: 1 },
+        run: { font: "Times New Roman", size: 24, bold: true, color: BLACK },
+        paragraph: { spacing: { before: 240, after: 120 }, keepNext: true, outlineLevel: 1 },
       },
     ],
   },
@@ -447,7 +461,7 @@ const doc = new Document({
     {
       properties: { page: { margin: { top: 1300, bottom: 1300, left: 1440, right: 1440 } } },
       headers: {
-        default: new Header({ children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: "RestoreCheck · BCSE355L DA-III", size: 18, color: "6B7280" })] })] }),
+        default: new Header({ children: [new Paragraph({ alignment: AlignmentType.RIGHT, border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: BLACK, space: 4 } }, children: [new TextRun({ text: "RestoreCheck  |  BCSE355L Cloud Architecture Design  |  DA-III", size: 18, italics: true })] })] }),
       },
       footers: {
         default: new Footer({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ children: [PageNumber.CURRENT], size: 20 })] })] }),
