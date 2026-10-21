@@ -100,6 +100,8 @@ Each run ends as **PASSED** (all checks passed), **FAILED** (restored, but a che
 | `demo/source-db.yaml` | The demo PostgreSQL database RestoreCheck verifies (separate stack) |
 | `scripts/` | `deploy_aws.ps1` / `teardown_aws.ps1`, `demo_db.py` (seed, break, snapshot the demo DB), `run_pipeline.py` (start a run and wait), `run_scenarios.py` (run every demo scenario, write `results/`), `build_site.py` (results page in `docs/`), `deploy_local.ps1` (LocalStack) |
 | `docs/` | Results page (`index.html`, served by GitHub Pages), architecture diagram, references |
+| `dataset/` | The demo dataset for publishing (CSV tables, expectations, scenario results); built by `scripts/export_dataset.py` |
+| `report/` | The DA-III report (`RestoreCheck_DA3_Report.docx`) and its generator (`cd report && npm install && node build_report.js`) |
 | `docker-compose.yml` | Starts LocalStack (optional) |
 
 ## Development

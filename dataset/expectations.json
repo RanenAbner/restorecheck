@@ -1,0 +1,24 @@
+{
+  "description": "What a healthy restore of the demo shop database must contain. 'tables' maps each table to its minimum row count; every 'queries' entry must return true. scripts/seed_source_db.py creates data that satisfies this.",
+  "tables": {
+    "customers": 50,
+    "products": 20,
+    "orders": 200,
+    "order_items": 400,
+    "restorecheck_canary": 100
+  },
+  "queries": [
+    {
+      "name": "every order item belongs to an order",
+      "sql": "SELECT NOT EXISTS (SELECT 1 FROM order_items oi LEFT JOIN orders o ON o.id = oi.order_id WHERE o.id IS NULL)"
+    },
+    {
+      "name": "every order belongs to a customer",
+      "sql": "SELECT NOT EXISTS (SELECT 1 FROM orders o LEFT JOIN customers c ON c.id = o.customer_id WHERE c.id IS NULL)"
+    },
+    {
+      "name": "no negative prices",
+      "sql": "SELECT NOT EXISTS (SELECT 1 FROM products WHERE price < 0)"
+    }
+  ]
+}
