@@ -19,3 +19,7 @@ volume/
 # Report build dependencies
 report/node_modules/
 report/package-lock.json
+
+# Console screenshots (contain account details) and the report built with them
+report/figures/
+report/*_with_figures.docx

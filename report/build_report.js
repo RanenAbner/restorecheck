@@ -9,13 +9,17 @@
 const fs = require("fs");
 const path = require("path");
 const {
-  AlignmentType, BorderStyle, Document, ExternalHyperlink, Footer, Header, HeadingLevel,
+  AlignmentType, BorderStyle, Document, ExternalHyperlink, Footer, Header, HeadingLevel, ImageRun,
   LevelFormat, Packer, PageNumber, Paragraph, ShadingType, Table, TableCell, TableRow,
   TextRun, WidthType,
 } = require("docx");
 
 const ROOT = path.resolve(__dirname, "..");
-const OUT = path.join(__dirname, "RestoreCheck_DA3_Report.docx");
+// WITH_FIGURES=1 embeds the screenshots in report/figures/ (git-ignored: they show
+// account details) and writes a separate, also git-ignored, file.
+const WITH_FIGURES = process.env.WITH_FIGURES === "1";
+const FIG_DIR = path.join(__dirname, "figures");
+const OUT = path.join(__dirname, WITH_FIGURES ? "RestoreCheck_DA3_Report_with_figures.docx" : "RestoreCheck_DA3_Report.docx");
 const TITLE = "RestoreCheck: Automated Backup Recoverability Verification and Disaster-Recovery Testing on AWS";
 const REPO = "https://github.com/RanenAbner/restorecheck";
 const SITE = "https://ranenabner.github.io/restorecheck/";
@@ -127,6 +131,31 @@ function table(widths, header, rows) {
   });
 }
 const spacer = () => new Paragraph({ children: [], spacing: { after: 120 } });
+
+// Figures: embed the PNGs when WITH_FIGURES=1 and every file exists, otherwise a placeholder.
+const MAX_W = 600; // px at 96 dpi = the text width (6.27 in)
+const pngSize = (buf) => ({ width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) });
+function image(file, maxHeight) {
+  const data = fs.readFileSync(path.join(FIG_DIR, file));
+  const { width, height } = pngSize(data);
+  const scale = Math.min(MAX_W / width, maxHeight / height, 1);
+  return new Paragraph({
+    alignment: AlignmentType.CENTER,
+    keepNext: true,
+    spacing: { before: 120, after: 40 },
+    children: [new ImageRun({ type: "png", data, transformation: { width: Math.round(width * scale), height: Math.round(height * scale) } })],
+  });
+}
+let figureCount = 0;
+function figure(files, text, placeholderText) {
+  figureCount += 1;
+  const present = WITH_FIGURES && files.every((f) => fs.existsSync(path.join(FIG_DIR, f)));
+  const maxHeight = files.length > 1 ? 380 : 620;
+  return [
+    ...(present ? files.map((f) => image(f, maxHeight)) : [placeholder(placeholderText || `[ Insert screenshot: ${text} ]`)]),
+    caption(`Figure ${figureCount}. ${text}`),
+  ];
+}
 
 // ---------------------------------------------------------------- numbers from results
 const restoreMin = results.filter((r) => r.restore_seconds).map((r) => r.restore_seconds / 60);
@@ -247,8 +276,11 @@ add(
 
 add(
   H1("Architecture diagram"),
-  placeholder("[ Insert Figure 1: export docs/architecture.drawio to PNG at app.diagrams.net (File > Export as > PNG, 200%) ]"),
-  caption("Figure 1. RestoreCheck architecture on AWS (region ap-southeast-2). Numbers match the steps below."),
+  ...figure(
+    ["fig01_architecture.png"],
+    "RestoreCheck architecture on AWS (region ap-southeast-2). Numbers match the steps below.",
+    "[ Insert Figure 1: export docs/architecture.drawio to PNG at app.diagrams.net (File > Export as > PNG, 200%) ]",
+  ),
   P(`A run proceeds as follows (Figure 1). The workflow is defined in the Amazon States Language ${c(38)}.`),
   ...numberedList([
     `**Start.** An Amazon EventBridge schedule (nightly by default) starts a Step Functions execution ${c(39)}; runs can also be started on demand.`,
@@ -296,20 +328,23 @@ add(
 
 add(
   H1("Screenshots"),
-  P("Screenshots taken from the deployed system on AWS (ap-southeast-2)."),
+  P("Screenshots taken from the deployed system on AWS (ap-southeast-2) on 21–22 October 2026."),
   ...[
-    "Figure 2. CloudFormation: the deployed restorecheck and restorecheck-demo-db stacks",
-    "Figure 3. Step Functions: graph view of a PASSED execution",
-    "Figure 4. Step Functions: graph view of a FAILED execution (ending in BackupNotVerified)",
-    "Figure 5. RDS console during a run: the temporary restorecheck-tmp-* instance beside the source database",
-    "Figure 6. The SNS alert email (RestoreCheck FAILED) received for a broken backup",
-    "Figure 7. DynamoDB: run history items",
-    "Figure 8. S3: a detailed JSON verification report",
-    "Figure 9. CloudWatch: the restorecheck-backup-health dashboard",
-    "Figure 10. IAM: the verifier's custom least-privilege JSON policy",
-    "Figure 11. The results site on GitHub Pages",
-    "Figure 12. Automated test suite output (pytest)",
-  ].flatMap((cap) => [placeholder(`[ Insert screenshot: ${cap.split(". ")[1]} ]`), caption(cap)]),
+    [["fig02_cloudformation.png"], "CloudFormation: the deployed restorecheck and restorecheck-demo-db stacks"],
+    [["fig03_sfn_passed.png"], "Step Functions: graph view of a PASSED execution, every step green and ending in BackupVerified"],
+    [["fig_live_graph.png"], "Step Functions: a run in progress, looping through WaitForRestore and CheckRestoreStatus until the restored instance is available"],
+    [["fig04_sfn_failed.png"], "Step Functions: the FAILED corrupt-data execution, ending in the red BackupNotVerified state"],
+    [["fig04b_output_run.png", "fig04c_output_checks.png"], "Output of the RunIntegrityChecks step in the corrupt-data run: canary_checksum failed while every other check passed"],
+    [["fig05_rds_live.png"], "RDS console during a run: the temporary restorecheck-tmp-* instance beside the source database"],
+    [["fig06_alert_email.png"], "The SNS alert email received for the corrupt-data backup, naming the failed check"],
+    [["fig07_dynamodb.png"], "DynamoDB: run history with PASSED, FAILED and ERROR runs"],
+    [["fig08_s3_report.png"], "S3: the detailed JSON verification report of the corrupt-data run"],
+    [["fig09_dashboard.png"], "CloudWatch: the restorecheck-backup-health dashboard"],
+    [["fig10a_verifier_policy.png", "fig10b_verifier_policy.png", "fig10c_verifier_policy.png"], "IAM: the verifier's custom least-privilege JSON policy"],
+    [["fig10d_checker_policy.png"], "IAM: the checker's custom JSON policy, allowing database login as one user only"],
+    [["fig11_results_site.png"], "The results site on GitHub Pages"],
+    [["fig12_tests.png"], "Automated test suite output (pytest): 76 tests passed"],
+  ].flatMap(([files, text]) => figure(files, text)),
 );
 
 const scenarioRows = results.map((r) => [
