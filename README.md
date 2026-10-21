@@ -98,7 +98,8 @@ Each run ends as **PASSED** (all checks passed), **FAILED** (restored, but a che
 | `src/config.py`, `src/aws_clients.py` | Settings + boto3 client factory (dev mode lives here) |
 | `tests/` | pytest tests, run against an in-process fake of AWS (moto) |
 | `demo/source-db.yaml` | The demo PostgreSQL database RestoreCheck verifies (separate stack) |
-| `scripts/` | `deploy_aws.ps1` / `teardown_aws.ps1`, `demo_db.py` (seed, break, snapshot the demo DB), `run_pipeline.py` (start a run and wait), `run_scenarios.py` (run every demo scenario, write `results/`), `deploy_local.ps1` (LocalStack) |
+| `scripts/` | `deploy_aws.ps1` / `teardown_aws.ps1`, `demo_db.py` (seed, break, snapshot the demo DB), `run_pipeline.py` (start a run and wait), `run_scenarios.py` (run every demo scenario, write `results/`), `build_site.py` (results page in `docs/`), `deploy_local.ps1` (LocalStack) |
+| `docs/` | Results page (`index.html`, served by GitHub Pages), architecture diagram, references |
 | `docker-compose.yml` | Starts LocalStack (optional) |
 
 ## Development
@@ -147,10 +148,11 @@ python scripts/run_pipeline.py --aws --source-db ghost-db   # -> ERROR (no backu
 .\scripts\teardown_aws.ps1                              # delete everything afterwards
 ```
 
-Or run every scenario in one go (about an hour) and get a results table in `results/scenarios.md`:
+Or run every scenario in one go (about an hour) and get a results table in `results/scenarios.md`, then rebuild the results page:
 
 ```powershell
 python scripts/run_scenarios.py
+python scripts/build_site.py
 ```
 
 Each break scenario makes a different check fail: `missing-table` → `tables_present`, `truncated-table` → `row_counts`, `corrupt-data` → `canary_checksum`, `orphaned-rows` → `test_queries`. `demo_db.py seed` repairs the data.

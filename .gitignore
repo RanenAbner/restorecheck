@@ -12,3 +12,6 @@ __pycache__/
 
 # LocalStack state
 volume/
+
+# Local preview server config (machine-specific paths)
+.claude/launch.json
