@@ -1,0 +1,27 @@
+cff-version: 1.2.0
+message: "If you use this work, please cite it as below."
+type: software
+title: "RestoreCheck: Automated Backup Recoverability Verification and Disaster-Recovery Testing on AWS"
+abstract: >-
+  A serverless AWS system that regularly restores the newest Amazon RDS for
+  PostgreSQL snapshot into a temporary instance, verifies the restored data with
+  six integrity checks, records and alerts on the result, and always deletes
+  the temporary instance.
+authors:
+  - given-names: Ranen
+    family-names: Abner
+    affiliation: Vellore Institute of Technology
+  - given-names: Sai Charan
+    affiliation: Vellore Institute of Technology
+  - given-names: S.
+    family-names: Vigneshwari
+    affiliation: Vellore Institute of Technology
+repository-code: "https://github.com/RanenAbner/restorecheck"
+url: "https://ranenabner.github.io/restorecheck/"
+date-released: 2026-10-22
+keywords:
+  - backup verification
+  - disaster recovery
+  - restore testing
+  - AWS Step Functions
+  - Amazon RDS
