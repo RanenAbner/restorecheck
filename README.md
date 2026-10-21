@@ -27,92 +27,135 @@ This proves — continuously and automatically — that backups are genuinely re
 ## Architecture (MVP: RDS backups)
 
 ```
-            +--------------+
-            | EventBridge  |  (scheduled cron trigger)
-            +------+-------+
-                   | invokes
-                   v
-            +--------------+        restore latest snapshot
-            |    Lambda    | ------------->  +-------------------+
-            | (Python/Boto3)|                |  Temporary RDS    |
-            |  orchestrator | <---- checks --|  (spun up & torn  |
-            +--+---+---+----+                |  down each run)   |
-               |   |   |                     +-------------------+
-      result   |   |   |  alert on failure
-       +-------v+ +v--+ v------+
-       |DynamoDB| | S3 | | SNS  |--> email alert
-       |(history)| |(report)| +------+
-       +--------+ +----+
-               |
-               v
-        +------------+
-        | CloudWatch |  (dashboards, metrics, RTO trends)
-        +------------+
+  EventBridge (cron) --starts--> Step Functions workflow
+                                   |
+   +-------------------------------+--------------------------------------+
+   | 1 PrepareRestore   Lambda: sweep leftovers, find newest snapshot,    |
+   |                    start restore into a temporary instance           |
+   | 2 Wait 60s  <-+                                                      |
+   | 3 CheckStatus |    Lambda: still restoring? -> back to 2             |
+   |               +--  (fails on a broken restore or MaxRestoreMinutes)  |
+   | 4 RunChecks        Lambda INSIDE the VPC: log in with an IAM token,  |
+   |                    run SQL integrity checks                          |
+   | 5 Teardown         Lambda: delete the temporary instance             |
+   |                    (every failure in 1-4 jumps straight here)        |
+   | 6 RecordResult     Lambda: report -> S3, history -> DynamoDB,        |
+   |                    metrics -> CloudWatch, alert -> SNS (email)       |
+   +----------------------------------------------------------------------+
 
-   Security: IAM least-privilege role + custom JSON policy
+   VPC:  [checker Lambda] --5432/TLS--> [temporary RDS instance]
+         (security group allows only the checker; instance is not public)
+
+   Security:   IAM least privilege - one custom JSON policy per Lambda
    Deployment: AWS SAM / CloudFormation (Infrastructure as Code)
 ```
+
+**Why Step Functions?** A real RDS restore often takes 10–20+ minutes, longer than the 15-minute maximum of one Lambda invocation. The workflow runs short Lambda steps and waits between them (waiting costs nothing), and its wiring guarantees that every path that may have started a restore passes through Teardown. `tests/test_state_machine.py` checks that guarantee.
+
+**Why IAM database authentication?** The checker logs in with a 15-minute token signed by its own IAM role, so no database password is stored anywhere, and its policy allows logging in as exactly one read-only user. The token is computed locally, so the checker makes no AWS API calls. That means the VPC needs no NAT gateway or VPC endpoints (≈ $7–32/month avoided).
+
+## Integrity checks
+| Check | Catches |
+|---|---|
+| `instance_available` | Restore produced no usable instance, or the wrong engine |
+| `connect` | Restored database unreachable or login broken |
+| `tables_present` | A table silently missing from the backup |
+| `row_counts` | Truncated / incomplete data |
+| `canary_checksum` | Data altered or corrupted (a known table must match byte-for-byte) |
+| `test_queries` | Application-level breakage, e.g. orphaned rows |
+
+The expected tables, minimum row counts and test queries live in `src/checks/expectations.json`. A restore that hits an unrecoverable state (e.g. `inaccessible-encryption-credentials`, the deleted-KMS-key case) fails immediately.
+
+Each run ends as **PASSED** (all checks passed), **FAILED** (restored, but a check failed) or **ERROR** (the pipeline itself broke, e.g. no snapshot). FAILED and ERROR send an alert.
 
 ## AWS services used
 | Service | Role in the system |
 |---|---|
 | EventBridge | Schedules the periodic verification runs |
-| Lambda | Orchestrates restore -> verify -> record -> teardown |
+| Step Functions | Orchestrates restore → wait → check → teardown → record |
+| Lambda | The individual steps (verifier) and the SQL checks (checker, in the VPC) |
 | RDS | Temporary database restored from a snapshot for testing |
+| VPC / security groups | Private network path from the checker to the temporary database only |
 | S3 | Stores detailed verification reports |
 | DynamoDB | Stores pass/fail history for fast lookups |
-| SNS | Sends failure alerts (email/SMS) |
-| CloudWatch | Dashboards and metrics for backup health & RTO |
-| IAM | Least-privilege role + custom JSON policy |
+| SNS | Sends failure alerts (email) |
+| CloudWatch | Logs, metrics and dashboards for backup health & RTO |
+| IAM | Least-privilege roles, custom JSON policies, IAM database authentication |
 | CloudFormation (via SAM) | Reproducible, automated deployment |
 
 ## Repository layout
 | Path | Purpose |
 |---|---|
 | `template.yaml` | SAM/CloudFormation template — all infrastructure |
+| `statemachine/restorecheck.asl.json` | The Step Functions workflow (Amazon States Language) |
 | `samconfig.toml` | Saved `sam` options; the `dev` environment targets LocalStack |
-| `src/handler.py` | Lambda entry point |
+| `src/handler.py` | Verifier Lambda: routes each workflow step to `pipeline.py` |
+| `src/pipeline.py` | The steps: prepare, poll, teardown, record |
+| `src/checker.py` | Checker Lambda: IAM-token login + integrity checks |
+| `src/restore.py` | RDS operations: latest snapshot, restore, status, delete, straggler sweep |
+| `src/reporting.py` | S3 report, DynamoDB history row, CloudWatch metrics, SNS alert |
+| `src/checks/` | Integrity checks, one module each, plus `expectations.json` |
 | `src/config.py`, `src/aws_clients.py` | Settings + boto3 client factory (dev mode lives here) |
-| `src/checks/` | Integrity checks, one module each |
-| `tests/` | pytest unit tests |
-| `scripts/` | `deploy_local.ps1` (deploy to LocalStack), `local_run.py` (run the handler locally) |
-| `events/` | Sample invocation payloads |
-| `docker-compose.yml` | Starts LocalStack |
+| `tests/` | pytest tests, run against an in-process fake of AWS (moto) |
+| `demo/source-db.yaml` | The demo PostgreSQL database RestoreCheck verifies (separate stack) |
+| `scripts/` | `deploy_aws.ps1` / `teardown_aws.ps1`, `demo_db.py` (seed, break, snapshot the demo DB), `run_pipeline.py` (start a run and wait), `run_scenarios.py` (run every demo scenario, write `results/`), `deploy_local.ps1` (LocalStack) |
+| `docker-compose.yml` | Starts LocalStack (optional) |
 
-## Running locally (LocalStack)
-Development and testing run against **LocalStack** (local AWS emulator), so no AWS charges are incurred until the final deployment.
-
-Prerequisites: Docker Desktop, the AWS SAM CLI, a free LocalStack account (auth token), Python 3.
+## Development
+No AWS account or Docker is needed for the tests.
 
 ```powershell
-# one-time setup
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements-dev.txt aws-sam-cli-local
-Copy-Item .env.example .env        # then put your LOCALSTACK_AUTH_TOKEN in .env
+pip install -r requirements-dev.txt
 
-# unit tests + template lint (no Docker needed)
-pytest
-cfn-lint template.yaml
+pytest                    # unit tests (moto fakes AWS in-process)
+cfn-lint template.yaml    # template lint
+sam build                 # package both Lambdas (needs Python 3.12)
+```
 
-# deploy into LocalStack and run
+**Optional: LocalStack.** With Docker, a LocalStack auth token in `.env` (see `.env.example`) and `pip install aws-sam-cli-local`:
+```powershell
 docker compose up -d
 .\scripts\deploy_local.ps1
-python scripts/local_run.py --dev
+python scripts/run_pipeline.py --dev
 ```
 
-**Dev mode.** The `Stage=dev` template parameter sets `RESTORECHECK_DEV=true` on the Lambda. In dev mode every boto3 client is created with an explicit LocalStack endpoint (`http://localhost:4566`, or the `AWS_ENDPOINT_URL` LocalStack injects) and dummy credentials, and the code refuses to start if that endpoint is an `amazonaws.com` host.
+**Dev mode.** The `Stage=dev` template parameter sets `RESTORECHECK_DEV=true` on the verifier. In dev mode every boto3 client is created with an explicit LocalStack endpoint (`http://localhost:4566`, or the `AWS_ENDPOINT_URL` LocalStack injects) and dummy credentials, and the code refuses to start if that endpoint is an `amazonaws.com` host.
 
-## Open design decisions
-- **Lambda's 15-minute limit.** A real RDS restore often takes longer than one Lambda invocation may run. Before the real-AWS deploy the pipeline needs to be split (start restore → poll → check → teardown), e.g. with Step Functions.
-- **Network path to the temporary database.** To run SQL checks the Lambda must reach the restored instance, which means running it inside the VPC (plus VPC endpoints or NAT for the AWS APIs).
-- **Encrypted snapshots.** Snapshots encrypted with a customer-managed KMS key need `kms:CreateGrant`/`kms:DescribeKey` on that key added to the policy.
+## Before the AWS deployment
+- **Source database.** The verified database must be PostgreSQL, contain the `restorecheck_verifier` user with the `rds_iam` role, and match `expectations.json`. `scripts/demo_db.py seed` sets this up for the demo database.
+- **Encrypted snapshots.** Snapshots encrypted with a customer-managed KMS key need `kms:CreateGrant`/`kms:DescribeKey` on that key added to the verifier policy.
+- **Stack deletion.** Lambda's network interfaces in the VPC can take up to ~20–40 minutes to be released after the checker is deleted, so deleting the stack can be slow.
 
-## Deploying to AWS
-```bash
-sam build
-sam deploy --guided
+## Deploying to AWS (final demo)
+The project's AWS account only allows the Sydney region (`ap-southeast-2`); the `restorecheck` CLI profile defaults to it.
+
+```powershell
+.\scripts\deploy_aws.ps1 -AlertEmail you@example.com   # demo DB + RestoreCheck (~15 min the first time)
+
+python scripts/demo_db.py seed                          # healthy shop data + verifier user
+python scripts/demo_db.py snapshot --label healthy
+python scripts/run_pipeline.py --aws                    # -> PASSED
+
+python scripts/demo_db.py break missing-table           # or truncated-table / corrupt-data / orphaned-rows
+python scripts/demo_db.py snapshot --label missing-table
+python scripts/run_pipeline.py --aws                    # -> FAILED, alert email
+
+python scripts/run_pipeline.py --aws --source-db ghost-db   # -> ERROR (no backups exist)
+
+.\scripts\teardown_aws.ps1                              # delete everything afterwards
 ```
+
+Or run every scenario in one go (about an hour) and get a results table in `results/scenarios.md`:
+
+```powershell
+python scripts/run_scenarios.py
+```
+
+Each break scenario makes a different check fail: `missing-table` → `tables_present`, `truncated-table` → `row_counts`, `corrupt-data` → `canary_checksum`, `orphaned-rows` → `test_queries`. `demo_db.py seed` repairs the data.
+
+**Cost.** The demo database (db.t3.micro) is the main cost while it exists; each verification run adds a temporary db.t3.micro for roughly 15–30 minutes. Everything else is within free usage. Run `teardown_aws.ps1` when the demo is recorded.
 
 ## SDGs addressed
 - **SDG 9 (Industry, Innovation and Infrastructure)** — builds resilient, reliable digital infrastructure.

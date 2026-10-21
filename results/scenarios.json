@@ -1,0 +1,96 @@
+[
+  {
+    "scenario": "healthy",
+    "demonstrates": "Intact backup restores and passes every check",
+    "expected": "PASSED",
+    "actual": "PASSED",
+    "failed_checks": [],
+    "restore_seconds": 425.2,
+    "total_seconds": 437.4,
+    "teardown_ok": true,
+    "error": null,
+    "report_key": "reports/restorecheck-demo-source/2026-10-21T12:07:26Z.json",
+    "as_expected": true,
+    "execution_id": "ea0f1635-f688-486b-9e5a-de43c1401a9f"
+  },
+  {
+    "scenario": "missing-table",
+    "demonstrates": "A table silently missing from the backup",
+    "expected": "FAILED",
+    "actual": "FAILED",
+    "failed_checks": [
+      "tables_present",
+      "row_counts",
+      "test_queries"
+    ],
+    "restore_seconds": 425.0,
+    "total_seconds": 434.3,
+    "teardown_ok": true,
+    "error": null,
+    "report_key": "reports/restorecheck-demo-source/2026-10-21T12:18:05Z.json",
+    "as_expected": true,
+    "execution_id": "fc762a5d-cf15-4db2-9b44-7ebcd9dca537"
+  },
+  {
+    "scenario": "truncated-table",
+    "demonstrates": "Most rows of a table lost",
+    "expected": "FAILED",
+    "actual": "FAILED",
+    "failed_checks": [
+      "row_counts"
+    ],
+    "restore_seconds": 485.3,
+    "total_seconds": 494.2,
+    "teardown_ok": true,
+    "error": null,
+    "report_key": "reports/restorecheck-demo-source/2026-10-21T12:28:44Z.json",
+    "as_expected": true,
+    "execution_id": "a2fdc5b8-0f83-43cc-969a-15f97d1cb0ee"
+  },
+  {
+    "scenario": "corrupt-data",
+    "demonstrates": "One value altered (rows and counts unchanged)",
+    "expected": "FAILED",
+    "actual": "FAILED",
+    "failed_checks": [
+      "canary_checksum"
+    ],
+    "restore_seconds": 424.9,
+    "total_seconds": 436.0,
+    "teardown_ok": true,
+    "error": null,
+    "report_key": "reports/restorecheck-demo-source/2026-10-21T12:43:43Z.json",
+    "as_expected": true,
+    "execution_id": "c4d960db-cac1-46ac-ae24-ad156fb77b4c"
+  },
+  {
+    "scenario": "orphaned-rows",
+    "demonstrates": "Referential integrity broken",
+    "expected": "FAILED",
+    "actual": "FAILED",
+    "failed_checks": [
+      "test_queries"
+    ],
+    "restore_seconds": 425.1,
+    "total_seconds": 433.9,
+    "teardown_ok": true,
+    "error": null,
+    "report_key": "reports/restorecheck-demo-source/2026-10-21T12:54:22Z.json",
+    "as_expected": true,
+    "execution_id": "16a4eb5b-c884-4f89-ad3b-eae6ec3e40e3"
+  },
+  {
+    "scenario": "no-backup",
+    "demonstrates": "Database has no backup at all",
+    "expected": "ERROR",
+    "actual": "ERROR",
+    "failed_checks": [],
+    "restore_seconds": null,
+    "total_seconds": 0.8,
+    "teardown_ok": null,
+    "error": "NoSnapshotError: No available snapshot found for restorecheck-demo-nobackup",
+    "report_key": "reports/restorecheck-demo-nobackup/2026-10-21T13:01:58Z.json",
+    "as_expected": true,
+    "execution_id": "41733bc0-12e0-4487-817b-5d1c3e736ebd"
+  }
+]

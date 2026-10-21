@@ -3,9 +3,9 @@
 version = 0.1
 
 [default.build.parameters]
-# Build inside a Docker image of the python3.12 Lambda runtime, so the build does
-# not depend on which Python version is installed on this machine.
-use_container = true
+# Python 3.12 (the Lambda runtime version) is installed locally, so no Docker
+# build container is needed. The only dependency, pg8000, is pure Python.
+use_container = false
 
 # --- dev: LocalStack only -------------------------------------------------
 # Always deploy this with `samlocal` (scripts/deploy_local.ps1), never plain `sam`.
