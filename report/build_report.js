@@ -23,6 +23,9 @@ const OUT = path.join(__dirname, WITH_FIGURES ? "RestoreCheck_DA3_Report_with_fi
 const TITLE = "RestoreCheck: Automated Backup Recoverability Verification and Disaster-Recovery Testing on AWS";
 const REPO = "https://github.com/RanenAbner/restorecheck";
 const SITE = "https://ranenabner.github.io/restorecheck/";
+const TEAM = [["24BCE1185", "Ranen Abner"], ["24BAI1001", "Sai Charan"]];
+const FACULTY = "S. Vigneshwari";
+const CITE_AUTHORS = "Ranen Abner, Sai Charan, and S. Vigneshwari"; // team members, then faculty (course format)
 
 // ---------------------------------------------------------------- references
 const REFS = {};
@@ -146,6 +149,16 @@ function image(file, maxHeight) {
     children: [new ImageRun({ type: "png", data, transformation: { width: Math.round(width * scale), height: Math.round(height * scale) } })],
   });
 }
+function logo(file) {
+  const data = fs.readFileSync(path.join(FIG_DIR, file));
+  const { width, height } = pngSize(data);
+  const w = 360;
+  return new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { after: 200 },
+    children: [new ImageRun({ type: "png", data, transformation: { width: w, height: Math.round((height * w) / width) } })],
+  });
+}
 let figureCount = 0;
 function figure(files, text, placeholderText) {
   figureCount += 1;
@@ -175,17 +188,15 @@ const add = (...items) => body.push(...items.flat());
 
 // Title block (course format)
 add(
-  placeholder("[ Insert the official VIT logo here ]"),
+  WITH_FIGURES && fs.existsSync(path.join(FIG_DIR, "fig00_vit_logo.png"))
+    ? logo("fig00_vit_logo.png")
+    : placeholder("[ Insert the official VIT logo here ]"),
   centered("**School of Computer Science and Engineering**", { size: 26 }, 80),
   centered("**Course code:** BCSE355L     **Course Name:** Cloud Architecture Design", {}, 60),
   centered("**Direct Assessment III**     **Max Marks:** 10", {}, 200),
   centered("**Team members (Reg. No., Name):**", {}, 80),
-  table([3000, 6026], ["Registration No.", "Name"], [
-    ["[Reg. No.]", "[Name]"],
-    ["[Reg. No.]", "[Name]"],
-    ["[Reg. No.]", "[Name]"],
-  ]),
-  new Paragraph({ children: runs("**Faculty:** [Faculty name]"), alignment: AlignmentType.CENTER, spacing: { before: 160, after: 240 } }),
+  table([3000, 6026], ["Registration No.", "Name"], TEAM),
+  new Paragraph({ children: runs(`**Faculty:** ${FACULTY}`), alignment: AlignmentType.CENTER, spacing: { before: 160, after: 240 } }),
 );
 
 add(H1("Title"), P(`**${TITLE}**`, { alignment: AlignmentType.LEFT }));
@@ -259,7 +270,7 @@ add(
       "The exported files (CSV tables, expectations and results, with a README and a CC BY 4.0 licence) are in the repository's `dataset/` folder.",
   ),
   P("**Zenodo DOI:** [to be added after uploading dataset/ to Zenodo]"),
-  P(`**Citation:** [Team member names], [Faculty name], "RestoreCheck demo dataset: synthetic shop database and backup-verification scenario results," Zenodo, 2026, doi: [DOI].`),
+  P(`**Citation:** ${CITE_AUTHORS}, "RestoreCheck demo dataset: synthetic shop database and backup-verification scenario results," Zenodo, 2026, doi: [DOI].`),
 );
 
 add(
@@ -271,7 +282,7 @@ add(
 add(
   H1("GitHub repository link"),
   P(`**Repository:** ${REPO}`),
-  P(`**Citation:** [Team member names], [Faculty name], "${TITLE}," GitHub repository, 2026. [Online]. Available: ${REPO}`),
+  P(`**Citation:** ${CITE_AUTHORS}, "${TITLE}," GitHub repository, 2026. [Online]. Available: ${REPO}`),
 );
 
 add(
@@ -339,7 +350,7 @@ add(
     [["fig06_alert_email.png"], "The SNS alert email received for the corrupt-data backup, naming the failed check"],
     [["fig07_dynamodb.png"], "DynamoDB: run history with PASSED, FAILED and ERROR runs"],
     [["fig08_s3_report.png"], "S3: the detailed JSON verification report of the corrupt-data run"],
-    [["fig09_dashboard.png"], "CloudWatch: the restorecheck-backup-health dashboard"],
+    [["fig09_dashboard.png"], "CloudWatch: the restorecheck-backup-health dashboard over the scenario runs (21 October, UTC). The single verifier Lambda error near 13:00 is the expected \"no snapshot\" error of the no-backup scenario, which is how that ERROR is detected"],
     [["fig10a_verifier_policy.png", "fig10b_verifier_policy.png", "fig10c_verifier_policy.png"], "IAM: the verifier's custom least-privilege JSON policy"],
     [["fig10d_checker_policy.png"], "IAM: the checker's custom JSON policy, allowing database login as one user only"],
     [["fig11_results_site.png"], "The results site on GitHub Pages"],
@@ -409,7 +420,7 @@ add(
 
 // ---------------------------------------------------------------- document
 const doc = new Document({
-  creator: "RestoreCheck team",
+  creator: TEAM.map(([, name]) => name).join(", "),
   title: TITLE,
   styles: {
     default: { document: { run: { font: "Times New Roman", size: 24 } } },
