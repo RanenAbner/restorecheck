@@ -26,3 +26,6 @@ report/*_with_figures.docx
 
 # Zenodo upload bundle (built from dataset/)
 *.zip
+
+# Presentation deck and guide (use the local screenshots)
+presentation/
