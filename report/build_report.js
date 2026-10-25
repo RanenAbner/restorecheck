@@ -289,7 +289,7 @@ add(
 
 add(
   H1("Project demo link"),
-  P(`**Results site:** ${SITE}`),
+  P(`**Dashboard (project website):** ${SITE}. It shows every recorded run: the latest result, restore times, which check caught each broken backup, and each run's full report.`),
   P("**Demo video:** [add the link to the recorded demo]"),
 );
 
@@ -367,7 +367,7 @@ add(
     [["fig09_dashboard.png"], "CloudWatch: the restorecheck-backup-health dashboard over the scenario runs (21 October, UTC). The single verifier Lambda error near 13:00 is the expected \"no snapshot\" error of the no-backup scenario, which is how that ERROR is detected"],
     [["fig10a_verifier_policy.png", "fig10b_verifier_policy.png", "fig10c_verifier_policy.png"], "IAM: the verifier's custom least-privilege JSON policy"],
     [["fig10d_checker_policy.png"], "IAM: the checker's custom JSON policy, allowing database login as one user only"],
-    [["fig11_results_site.png"], "The results site on GitHub Pages"],
+    [["fig11_results_site.png"], "The RestoreCheck dashboard on GitHub Pages: latest result, restore time per run and the integrity checks of every run"],
     [["fig12_tests.png"], "Automated test suite output (pytest): 76 tests passed"],
   ].flatMap(([files, text]) => figure(files, text)),
 );
@@ -409,7 +409,7 @@ add(
     "**Limitations.** The prototype verifies one engine (PostgreSQL on RDS) against a synthetic dataset; expectations are a static configuration file; restore time is measured to the nearest minute; and the demo source database accepts connections from a single administrator IP address so that it can be seeded.",
   ),
   P(
-    "**Future work.** Verifying EC2/EBS volume snapshots and other engines; multi-region restore testing; deriving expectations automatically from the source database; using the checker as the validation step of AWS Backup restore testing; moving the schedule to EventBridge Scheduler; and a live dashboard served from S3 and CloudFront.",
+    "**Future work.** Verifying EC2/EBS volume snapshots and other engines; multi-region restore testing; deriving expectations automatically from the source database; using the checker as the validation step of AWS Backup restore testing; moving the schedule to EventBridge Scheduler; and a live version of the dashboard, served from S3 and CloudFront and reading DynamoDB directly.",
   ),
 );
 

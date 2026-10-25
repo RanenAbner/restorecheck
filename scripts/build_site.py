@@ -1,10 +1,11 @@
-"""Build the static results page (docs/index.html) from results/scenarios.json.
+"""Build the "How it works" page (docs/about.html) from results/scenarios.json.
 
     python scripts/build_site.py
 
-GitHub Pages serves docs/ as the project's demo site. The page is a snapshot of
-recorded runs, not a live view: re-run scripts/run_scenarios.py and this script
-to refresh it.
+GitHub Pages serves docs/ as the project's demo site: docs/index.html is the
+dashboard (it reads docs/data/runs.json, written by scripts/export_runs.py) and
+this page explains the project and its recorded test scenarios. Re-run
+scripts/run_scenarios.py and this script to refresh it.
 """
 import html
 import json
@@ -13,7 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 RESULTS = ROOT / "results" / "scenarios.json"
-OUT = ROOT / "docs" / "index.html"
+OUT = ROOT / "docs" / "about.html"
 REPO_URL = "https://github.com/RanenAbner/restorecheck"
 
 CHECKS = [
@@ -91,7 +92,8 @@ def build(rows, run_date):
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>RestoreCheck Results</title>
+<title>How RestoreCheck Works</title>
+<link rel="stylesheet" href="assets/site.css">
 <meta name="description" content="Automated backup recoverability verification on AWS: results from real test restores.">
 <style>
   :root {{
@@ -146,6 +148,16 @@ def build(rows, run_date):
 </style>
 </head>
 <body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="./">RestoreCheck</a>
+    <nav class="nav" aria-label="Site">
+      <a href="./">Dashboard</a>
+      <a href="about.html" aria-current="page">How it works</a>
+      <a href="{REPO_URL}">GitHub</a>
+    </nav>
+  </div>
+</header>
 <main>
   <h1>RestoreCheck</h1>
   <p class="tagline">Automated backup recoverability verification on AWS</p>
@@ -164,7 +176,7 @@ def build(rows, run_date):
 
   <div class="note">A recorded snapshot, not a live view: results of real runs on AWS (ap-southeast-2, db.t3.micro,
   PostgreSQL 17) on {esc(run_date)}. Restore times are measured to the nearest minute, because the workflow checks
-  progress once a minute.</div>
+  progress once a minute. Every run, including the repeats, is on the <a href="./">dashboard</a>.</div>
 
   <h2>How a run works</h2>
   <ol class="steps">

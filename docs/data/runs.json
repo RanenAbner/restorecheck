@@ -1,0 +1,415 @@
+{
+ "exported_at": "2026-10-25T13:35:39Z",
+ "runs": [
+  {
+   "source_db_id": "restorecheck-demo-source",
+   "run_timestamp": "2026-10-21T11:35:05Z",
+   "status": "PASSED",
+   "scenario": "healthy",
+   "recorded_result": false,
+   "snapshot_id": "restorecheck-demo-healthy-20261021-113205",
+   "snapshot_time": "2026-10-21T11:32:10.376000+00:00",
+   "temp_instance_id": "restorecheck-tmp-20261021113505",
+   "restore_seconds": 425.2,
+   "total_seconds": 437.0,
+   "checks_passed": 6,
+   "checks_total": 6,
+   "teardown_ok": true,
+   "error": null,
+   "checks": [
+    {
+     "name": "instance_available",
+     "passed": true,
+     "detail": "postgres 17.9 available at restorecheck-tmp-20261021113505.<id>.ap-southeast-2.rds.amazonaws.com:5432"
+    },
+    {
+     "name": "connect",
+     "passed": true,
+     "detail": "logged in with an IAM auth token over TLS"
+    },
+    {
+     "name": "tables_present",
+     "passed": true,
+     "detail": "all 5 expected tables present"
+    },
+    {
+     "name": "row_counts",
+     "passed": true,
+     "detail": "customers=60, products=25, orders=250, order_items=600, restorecheck_canary=100"
+    },
+    {
+     "name": "canary_checksum",
+     "passed": true,
+     "detail": "100 canary rows intact (md5 c2ccd15b4107e750ceda7aed4d5af6e4)"
+    },
+    {
+     "name": "test_queries",
+     "passed": true,
+     "detail": "all 3 test queries returned true"
+    }
+   ],
+   "report_available": true
+  },
+  {
+   "source_db_id": "restorecheck-demo-source",
+   "run_timestamp": "2026-10-21T11:50:23Z",
+   "status": "FAILED",
+   "scenario": "missing-table",
+   "recorded_result": false,
+   "snapshot_id": "restorecheck-demo-missing-table-20261021-114733",
+   "snapshot_time": "2026-10-21T11:47:37.860000+00:00",
+   "temp_instance_id": "restorecheck-tmp-20261021115023",
+   "restore_seconds": 485.4,
+   "total_seconds": 496.8,
+   "checks_passed": 3,
+   "checks_total": 6,
+   "teardown_ok": true,
+   "error": null,
+   "checks": [
+    {
+     "name": "instance_available",
+     "passed": true,
+     "detail": "postgres 17.9 available at restorecheck-tmp-20261021115023.<id>.ap-southeast-2.rds.amazonaws.com:5432"
+    },
+    {
+     "name": "connect",
+     "passed": true,
+     "detail": "logged in with an IAM auth token over TLS"
+    },
+    {
+     "name": "tables_present",
+     "passed": false,
+     "detail": "missing tables: order_items"
+    },
+    {
+     "name": "row_counts",
+     "passed": false,
+     "detail": "order_items: could not count (DatabaseError)"
+    },
+    {
+     "name": "canary_checksum",
+     "passed": true,
+     "detail": "100 canary rows intact (md5 c2ccd15b4107e750ceda7aed4d5af6e4)"
+    },
+    {
+     "name": "test_queries",
+     "passed": false,
+     "detail": "every order item belongs to an order: query failed (DatabaseError: {'S': 'ERROR', 'V': 'ERROR', 'C': '42P01', 'M': 'relation \"order_items\" does not exist', 'P': '34', 'F': 'parse_relation.c', 'L': '1449', 'R': 'parserOpenTable'})"
+    }
+   ],
+   "report_available": true
+  },
+  {
+   "source_db_id": "restorecheck-demo-source",
+   "run_timestamp": "2026-10-21T12:07:26Z",
+   "status": "PASSED",
+   "scenario": "healthy",
+   "recorded_result": true,
+   "snapshot_id": "restorecheck-demo-healthy-20261021-120436",
+   "snapshot_time": "2026-10-21T12:04:41.739000+00:00",
+   "temp_instance_id": "restorecheck-tmp-20261021120726",
+   "restore_seconds": 425.2,
+   "total_seconds": 437.4,
+   "checks_passed": 6,
+   "checks_total": 6,
+   "teardown_ok": true,
+   "error": null,
+   "checks": [
+    {
+     "name": "instance_available",
+     "passed": true,
+     "detail": "postgres 17.9 available at restorecheck-tmp-20261021120726.<id>.ap-southeast-2.rds.amazonaws.com:5432"
+    },
+    {
+     "name": "connect",
+     "passed": true,
+     "detail": "logged in with an IAM auth token over TLS"
+    },
+    {
+     "name": "tables_present",
+     "passed": true,
+     "detail": "all 5 expected tables present"
+    },
+    {
+     "name": "row_counts",
+     "passed": true,
+     "detail": "customers=60, products=25, orders=250, order_items=600, restorecheck_canary=100"
+    },
+    {
+     "name": "canary_checksum",
+     "passed": true,
+     "detail": "100 canary rows intact (md5 c2ccd15b4107e750ceda7aed4d5af6e4)"
+    },
+    {
+     "name": "test_queries",
+     "passed": true,
+     "detail": "all 3 test queries returned true"
+    }
+   ],
+   "report_available": true
+  },
+  {
+   "source_db_id": "restorecheck-demo-source",
+   "run_timestamp": "2026-10-21T12:18:05Z",
+   "status": "FAILED",
+   "scenario": "missing-table",
+   "recorded_result": true,
+   "snapshot_id": "restorecheck-demo-missing-table-20261021-121516",
+   "snapshot_time": "2026-10-21T12:15:22.937000+00:00",
+   "temp_instance_id": "restorecheck-tmp-20261021121805",
+   "restore_seconds": 425.0,
+   "total_seconds": 434.3,
+   "checks_passed": 3,
+   "checks_total": 6,
+   "teardown_ok": true,
+   "error": null,
+   "checks": [
+    {
+     "name": "instance_available",
+     "passed": true,
+     "detail": "postgres 17.9 available at restorecheck-tmp-20261021121805.<id>.ap-southeast-2.rds.amazonaws.com:5432"
+    },
+    {
+     "name": "connect",
+     "passed": true,
+     "detail": "logged in with an IAM auth token over TLS"
+    },
+    {
+     "name": "tables_present",
+     "passed": false,
+     "detail": "missing tables: order_items"
+    },
+    {
+     "name": "row_counts",
+     "passed": false,
+     "detail": "order_items: could not count (relation \"order_items\" does not exist [42P01])"
+    },
+    {
+     "name": "canary_checksum",
+     "passed": true,
+     "detail": "100 canary rows intact (md5 c2ccd15b4107e750ceda7aed4d5af6e4)"
+    },
+    {
+     "name": "test_queries",
+     "passed": false,
+     "detail": "every order item belongs to an order: query failed (relation \"order_items\" does not exist [42P01])"
+    }
+   ],
+   "report_available": true
+  },
+  {
+   "source_db_id": "restorecheck-demo-source",
+   "run_timestamp": "2026-10-21T12:28:44Z",
+   "status": "FAILED",
+   "scenario": "truncated-table",
+   "recorded_result": true,
+   "snapshot_id": "restorecheck-demo-truncated-table-20261021-122555",
+   "snapshot_time": "2026-10-21T12:25:58.978000+00:00",
+   "temp_instance_id": "restorecheck-tmp-20261021122844",
+   "restore_seconds": 485.3,
+   "total_seconds": 494.2,
+   "checks_passed": 5,
+   "checks_total": 6,
+   "teardown_ok": true,
+   "error": null,
+   "checks": [
+    {
+     "name": "instance_available",
+     "passed": true,
+     "detail": "postgres 17.9 available at restorecheck-tmp-20261021122844.<id>.ap-southeast-2.rds.amazonaws.com:5432"
+    },
+    {
+     "name": "connect",
+     "passed": true,
+     "detail": "logged in with an IAM auth token over TLS"
+    },
+    {
+     "name": "tables_present",
+     "passed": true,
+     "detail": "all 5 expected tables present"
+    },
+    {
+     "name": "row_counts",
+     "passed": false,
+     "detail": "order_items has 100 rows, expected at least 400"
+    },
+    {
+     "name": "canary_checksum",
+     "passed": true,
+     "detail": "100 canary rows intact (md5 c2ccd15b4107e750ceda7aed4d5af6e4)"
+    },
+    {
+     "name": "test_queries",
+     "passed": true,
+     "detail": "all 3 test queries returned true"
+    }
+   ],
+   "report_available": true
+  },
+  {
+   "source_db_id": "restorecheck-demo-source",
+   "run_timestamp": "2026-10-21T12:43:43Z",
+   "status": "FAILED",
+   "scenario": "corrupt-data",
+   "recorded_result": true,
+   "snapshot_id": "restorecheck-demo-corrupt-data-20261021-124053",
+   "snapshot_time": "2026-10-21T12:40:59.340000+00:00",
+   "temp_instance_id": "restorecheck-tmp-20261021124343",
+   "restore_seconds": 424.9,
+   "total_seconds": 436.0,
+   "checks_passed": 5,
+   "checks_total": 6,
+   "teardown_ok": true,
+   "error": null,
+   "checks": [
+    {
+     "name": "instance_available",
+     "passed": true,
+     "detail": "postgres 17.9 available at restorecheck-tmp-20261021124343.<id>.ap-southeast-2.rds.amazonaws.com:5432"
+    },
+    {
+     "name": "connect",
+     "passed": true,
+     "detail": "logged in with an IAM auth token over TLS"
+    },
+    {
+     "name": "tables_present",
+     "passed": true,
+     "detail": "all 5 expected tables present"
+    },
+    {
+     "name": "row_counts",
+     "passed": true,
+     "detail": "customers=60, products=25, orders=250, order_items=600, restorecheck_canary=100"
+    },
+    {
+     "name": "canary_checksum",
+     "passed": false,
+     "detail": "checksum 4967dbe80d24be89382ab06e9c184b68 does not match expected c2ccd15b4107e750ceda7aed4d5af6e4"
+    },
+    {
+     "name": "test_queries",
+     "passed": true,
+     "detail": "all 3 test queries returned true"
+    }
+   ],
+   "report_available": true
+  },
+  {
+   "source_db_id": "restorecheck-demo-source",
+   "run_timestamp": "2026-10-21T12:54:22Z",
+   "status": "FAILED",
+   "scenario": "orphaned-rows",
+   "recorded_result": true,
+   "snapshot_id": "restorecheck-demo-orphaned-rows-20261021-125132",
+   "snapshot_time": "2026-10-21T12:51:38.979000+00:00",
+   "temp_instance_id": "restorecheck-tmp-20261021125422",
+   "restore_seconds": 425.1,
+   "total_seconds": 433.9,
+   "checks_passed": 5,
+   "checks_total": 6,
+   "teardown_ok": true,
+   "error": null,
+   "checks": [
+    {
+     "name": "instance_available",
+     "passed": true,
+     "detail": "postgres 17.9 available at restorecheck-tmp-20261021125422.<id>.ap-southeast-2.rds.amazonaws.com:5432"
+    },
+    {
+     "name": "connect",
+     "passed": true,
+     "detail": "logged in with an IAM auth token over TLS"
+    },
+    {
+     "name": "tables_present",
+     "passed": true,
+     "detail": "all 5 expected tables present"
+    },
+    {
+     "name": "row_counts",
+     "passed": true,
+     "detail": "customers=60, products=25, orders=245, order_items=600, restorecheck_canary=100"
+    },
+    {
+     "name": "canary_checksum",
+     "passed": true,
+     "detail": "100 canary rows intact (md5 c2ccd15b4107e750ceda7aed4d5af6e4)"
+    },
+    {
+     "name": "test_queries",
+     "passed": false,
+     "detail": "every order item belongs to an order: returned False"
+    }
+   ],
+   "report_available": true
+  },
+  {
+   "source_db_id": "restorecheck-demo-nobackup",
+   "run_timestamp": "2026-10-21T13:01:58Z",
+   "status": "ERROR",
+   "scenario": "no-backup",
+   "recorded_result": true,
+   "snapshot_id": null,
+   "snapshot_time": null,
+   "temp_instance_id": null,
+   "restore_seconds": null,
+   "total_seconds": 0.8,
+   "checks_passed": 0,
+   "checks_total": 0,
+   "teardown_ok": null,
+   "error": "NoSnapshotError: No available snapshot found for restorecheck-demo-nobackup",
+   "checks": [],
+   "report_available": true
+  },
+  {
+   "source_db_id": "restorecheck-demo-source",
+   "run_timestamp": "2026-10-21T18:43:15Z",
+   "status": "PASSED",
+   "scenario": "healthy",
+   "recorded_result": false,
+   "snapshot_id": "restorecheck-demo-healthy-20261021-130233",
+   "snapshot_time": "2026-10-21T13:02:39.836000+00:00",
+   "temp_instance_id": "restorecheck-tmp-20261021184315",
+   "restore_seconds": 667.3,
+   "total_seconds": 678.5,
+   "checks_passed": 6,
+   "checks_total": 6,
+   "teardown_ok": true,
+   "error": null,
+   "checks": [
+    {
+     "name": "instance_available",
+     "passed": true,
+     "detail": "postgres 17.9 available at restorecheck-tmp-20261021184315.<id>.ap-southeast-2.rds.amazonaws.com:5432"
+    },
+    {
+     "name": "connect",
+     "passed": true,
+     "detail": "logged in with an IAM auth token over TLS"
+    },
+    {
+     "name": "tables_present",
+     "passed": true,
+     "detail": "all 5 expected tables present"
+    },
+    {
+     "name": "row_counts",
+     "passed": true,
+     "detail": "customers=60, products=25, orders=250, order_items=600, restorecheck_canary=100"
+    },
+    {
+     "name": "canary_checksum",
+     "passed": true,
+     "detail": "100 canary rows intact (md5 c2ccd15b4107e750ceda7aed4d5af6e4)"
+    },
+    {
+     "name": "test_queries",
+     "passed": true,
+     "detail": "all 3 test queries returned true"
+    }
+   ],
+   "report_available": true
+  }
+ ]
+}
