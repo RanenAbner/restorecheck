@@ -22,7 +22,6 @@ const FIG_DIR = path.join(__dirname, "figures");
 const OUT = path.join(__dirname, WITH_FIGURES ? "RestoreCheck_DA3_Report_with_figures.docx" : "RestoreCheck_DA3_Report.docx");
 const TITLE = "RestoreCheck: Automated Backup Recoverability Verification and Disaster-Recovery Testing on AWS";
 const REPO = "https://github.com/RanenAbner/restorecheck";
-const SITE = "https://ranenabner.github.io/restorecheck/";
 const TEAM = [["24BCE1185", "Ranen Abner"], ["24BAI1001", "Sai Charan"]];
 const FACULTY = "S. Vigneshwari";
 const CITE_AUTHORS = "Ranen Abner, Sai Charan, and S. Vigneshwari"; // team members, then faculty (course format)
@@ -174,6 +173,7 @@ function logo(file) {
   });
 }
 let figureCount = 0;
+const nf = (k = 1) => figureCount + k; // number of the k-th next figure, for in-text references
 function figure(files, text, placeholderText) {
   figureCount += 1;
   const present = WITH_FIGURES && files.every((f) => fs.existsSync(path.join(FIG_DIR, f)));
@@ -261,7 +261,7 @@ add(
   bullet(`**Security by design.** Each Lambda has its own custom JSON IAM policy: restore and delete are allowed only on instances named \`restorecheck-tmp-*\`, metrics only in one CloudWatch namespace ${c(44, 45)}. The checker logs in with a 15-minute IAM authentication token over verified TLS, so no database password exists anywhere ${c(32, 33)}. Temporary instances are private and reachable only from the checker's security group ${c(47)}.`),
   bullet(`**No idle networking cost.** Only the checker runs inside the VPC, and it makes no AWS API calls (the login token is computed locally) ${c(35)}, so no NAT gateway or VPC endpoints are needed.`),
   bullet("**Evaluated by failure injection.** A reproducible scenario runner damages the demo database in controlled ways and confirms each kind of damage is caught by the intended check, which tests the verifier itself."),
-  bullet(`**Infrastructure as code.** The whole system, including IAM, networking, the workflow and the dashboard, is one AWS SAM template compiled to CloudFormation ${c(48, 49)}.`),
+  bullet(`**Infrastructure as code.** The whole system, including IAM, networking, the workflow and the CloudWatch dashboard, is one AWS SAM template compiled to CloudFormation ${c(48, 49)}.`),
   bullet(`**Sustainable Development Goals.** Resilient digital infrastructure (SDG 9) and stronger disaster recovery for essential services (SDG 11) ${c(55, 56)}.`),
   H2("Related work and prior art"),
   P(
@@ -273,7 +273,7 @@ add(
   P(
     `**AWS Backup restore testing.** AWS offers scheduled restore testing that restores recovery points, measures restore job duration and deletes the restored resources afterwards ${c(27, 26)}. ` +
       "Validating the restored *data*, however, is optional and must be programmed by the customer: AWS's documentation states that validation can be run programmatically but not from the AWS Backup console. " +
-      "RestoreCheck supplies exactly that missing layer (data-level checks, a per-run report, run history, alerting and a dashboard) as transparent, open-source infrastructure as code. It complements AWS Backup rather than replacing it, and its checker could serve as the validation step for AWS Backup restore tests in future.",
+      "RestoreCheck supplies exactly that missing layer (data-level checks, a per-run report, run history, alerting and a CloudWatch dashboard) as transparent, open-source infrastructure as code. It complements AWS Backup rather than replacing it, and its checker could serve as the validation step for AWS Backup restore tests in future.",
   ),
 );
 
@@ -289,8 +289,10 @@ add(
 
 add(
   H1("Project demo link"),
-  P(`**Dashboard (project website):** ${SITE}. It shows every recorded run: the latest result, restore times, which check caught each broken backup, and each run's full report.`),
   P("**Demo video:** [add the link to the recorded demo]"),
+  P(
+    "The video (about two and a half minutes) shows the system running on AWS: the healthy demo database, one value being corrupted, a snapshot being taken, RestoreCheck restoring that snapshot into a temporary database, the run failing on the canary checksum, the alert email, and the CloudWatch dashboard.",
+  ),
 );
 
 add(
@@ -301,21 +303,16 @@ add(
 
 add(
   H1("Architecture diagram"),
-  ...figure(
-    ["fig01_architecture.png"],
-    "RestoreCheck architecture on AWS (region ap-southeast-2). Numbers match the steps below.",
-    "[ Insert Figure 1: export docs/architecture.drawio to PNG at app.diagrams.net (File > Export as > PNG, 200%) ]",
+  P(
+    `RestoreCheck is a serverless system deployed in one AWS region (ap-southeast-2). Figure ${nf()} shows its components: a scheduled trigger, a Step Functions workflow, two Lambda functions, the source database and its temporary restored copy inside a private network, and four services that store and report each result.`,
   ),
-  P(`A run proceeds as follows (Figure 1). The workflow is defined in the Amazon States Language ${c(38)}.`),
-  ...numberedList([
-    `**Start.** An Amazon EventBridge schedule (nightly by default) starts a Step Functions execution ${c(39)}; runs can also be started on demand.`,
-    `**Prepare.** The verifier Lambda deletes stragglers from earlier runs, finds the newest available snapshot of the source database ${c(28)} and starts restoring it into a temporary instance named \`restorecheck-tmp-<timestamp>\` ${c(29)}, placed in a dedicated subnet group and security group, not publicly accessible, with IAM authentication enabled.`,
-    `**Wait.** The workflow waits one minute and asks the verifier for the instance status ${c(30)}, repeating until it is available. Unrecoverable states (for example \`inaccessible-encryption-credentials\`, the unusable-key case) and restores longer than a configurable limit fail immediately.`,
-    `**Verify.** The checker Lambda, inside the VPC ${c(35)}, connects to the restored database over TLS with an IAM authentication token and runs the integrity checks ${c(32, 33)}.`,
-    "**Teardown.** The verifier deletes the temporary instance. Every failure in steps 2 to 4 is caught and routed here; an instance that cannot be deleted yet is retried for up to about 49 minutes.",
-    `**Record.** The verifier writes a JSON report to S3, a history row to DynamoDB ${c(40)}, and metrics to CloudWatch ${c(42)}, and publishes an email alert through SNS when the backup did not pass ${c(41)}. Failed runs end in a red Fail state, so they are visible in the Step Functions console.`,
-  ]),
-  spacer(),
+  ...figure(
+    ["fig01_architecture_light.png"],
+    "RestoreCheck architecture on AWS. The checker Lambda and the temporary database run inside a private VPC; results flow to DynamoDB, S3, CloudWatch and SNS.",
+    "[ Insert Figure 1: RestoreCheck architecture diagram ]",
+  ),
+  H2("AWS services"),
+  P("Table 1 lists the AWS services used and the role each one plays."),
   table([2500, 6526], ["AWS service", "Role in RestoreCheck"], [
     ["Amazon EventBridge", "Scheduled trigger (cron) for verification runs"],
     ["AWS Step Functions", "Orchestrates prepare → wait/poll → checks → teardown → record; guarantees teardown"],
@@ -331,6 +328,24 @@ add(
     ["AWS SAM / CloudFormation", "The entire system as one template (infrastructure as code)"],
   ]),
   caption("Table 1. AWS services used and their roles."),
+  H2("Verification workflow"),
+  P(
+    `Each verification is one execution of the Step Functions workflow in Figure ${nf()}, defined in the Amazon States Language ${c(38)}. Steps 2 to 4 form a loop that waits for the restore to finish; every error in steps 1, 3 or 5 is routed straight to Teardown, so the temporary instance is always deleted.`,
+  ),
+  ...figure(
+    ["fig01b_workflow.png"],
+    "The verification workflow in AWS Step Functions, showing which component performs each step.",
+    "[ Insert Figure 2: verification workflow diagram ]",
+  ),
+  P("In detail, a run proceeds as follows:"),
+  ...numberedList([
+    `**Start.** An Amazon EventBridge schedule (nightly by default) starts a Step Functions execution ${c(39)}; runs can also be started on demand.`,
+    `**Prepare.** The verifier Lambda deletes stragglers from earlier runs, finds the newest available snapshot of the source database ${c(28)} and starts restoring it into a temporary instance named \`restorecheck-tmp-<timestamp>\` ${c(29)}, placed in a dedicated subnet group and security group, not publicly accessible, with IAM authentication enabled.`,
+    `**Wait.** The workflow waits one minute and asks the verifier for the instance status ${c(30)}, repeating until it is available. Unrecoverable states (for example \`inaccessible-encryption-credentials\`, the unusable-key case) and restores longer than a configurable limit fail immediately.`,
+    `**Verify.** The checker Lambda, inside the VPC ${c(35)}, connects to the restored database over TLS with an IAM authentication token and runs the integrity checks ${c(32, 33)}.`,
+    "**Teardown.** The verifier deletes the temporary instance. Every earlier failure is caught and routed here; an instance that cannot be deleted yet is retried for up to about 49 minutes.",
+    `**Record.** The verifier writes a JSON report to S3, a history row to DynamoDB ${c(40)}, and metrics to CloudWatch ${c(42)}, and publishes an email alert through SNS when the backup did not pass ${c(41)}. Failed runs end in a red Fail state, so they are visible in the Step Functions console.`,
+  ]),
   H2("Integrity checks"),
   table([2300, 3826, 2900], ["Check", "What it proves", "Catches"], [
     ["`instance_available`", "The restore produced a usable instance of the snapshot's engine", "Broken or wrong restores"],
@@ -353,23 +368,67 @@ add(
 
 add(
   H1("Screenshots"),
-  P("Screenshots taken from the deployed system on AWS (ap-southeast-2) on 21–22 October 2026."),
-  ...[
-    [["fig02_cloudformation.png"], "CloudFormation: the deployed restorecheck and restorecheck-demo-db stacks"],
-    [["fig03_sfn_passed.png"], "Step Functions: graph view of a PASSED execution, every step green and ending in BackupVerified"],
-    [["fig_live_graph.png"], "Step Functions: a run in progress, looping through WaitForRestore and CheckRestoreStatus until the restored instance is available"],
-    [["fig04_sfn_failed.png"], "Step Functions: the FAILED corrupt-data execution, ending in the red BackupNotVerified state"],
-    [["fig04b_output_run.png", "fig04c_output_checks.png"], "Output of the RunIntegrityChecks step in the corrupt-data run: canary_checksum failed while every other check passed"],
-    [["fig05_rds_live.png"], "RDS console during a run: the temporary restorecheck-tmp-* instance beside the source database"],
-    [["fig06_alert_email.png"], "The SNS alert email received for the corrupt-data backup, naming the failed check"],
-    [["fig07_dynamodb.png"], "DynamoDB: run history with PASSED, FAILED and ERROR runs"],
-    [["fig08_s3_report.png"], "S3: the detailed JSON verification report of the corrupt-data run"],
-    [["fig09_dashboard.png"], "CloudWatch: the restorecheck-backup-health dashboard over the scenario runs (21 October, UTC). The single verifier Lambda error near 13:00 is the expected \"no snapshot\" error of the no-backup scenario, which is how that ERROR is detected"],
-    [["fig10a_verifier_policy.png", "fig10b_verifier_policy.png", "fig10c_verifier_policy.png"], "IAM: the verifier's custom least-privilege JSON policy"],
-    [["fig10d_checker_policy.png"], "IAM: the checker's custom JSON policy, allowing database login as one user only"],
-    [["fig11_results_site.png"], "The RestoreCheck dashboard on GitHub Pages: latest result, restore time per run and the integrity checks of every run"],
-    [["fig12_tests.png"], "Automated test suite output (pytest): 76 tests passed"],
-  ].flatMap(([files, text]) => figure(files, text)),
+  P(
+    "The screenshots below were taken from the system deployed on AWS (region ap-southeast-2) between 21 and 25 October 2026. They follow a verification run from deployment to result, and then show how results are monitored, how access is restricted and how the code was tested.",
+  ),
+
+  H2("Deployment with AWS CloudFormation"),
+  P(
+    `The whole system is deployed from one AWS SAM template, which CloudFormation turns into the stacks in Figure ${nf()}. The demo source database is deliberately a separate stack: in real use RestoreCheck would be pointed at an existing production database rather than create one.`,
+  ),
+  ...figure(["fig02_cloudformation.png"], "AWS CloudFormation: the deployed restorecheck and restorecheck-demo-db stacks"),
+
+  H2("A verification run in AWS Step Functions"),
+  P(
+    `Figure ${nf()} shows a run in progress: the workflow loops through WaitForRestore and CheckRestoreStatus while the snapshot is being restored. Figure ${nf(2)} shows a complete run of a healthy backup, in which every step succeeded and the execution ended in BackupVerified.`,
+  ),
+  ...figure(["fig_live_graph.png"], "AWS Step Functions: a run in progress, waiting for the restored instance to become available"),
+  ...figure(["fig03_sfn_passed.png"], "AWS Step Functions: a PASSED execution, every step green and ending in BackupVerified"),
+
+  H2("The temporary restored database"),
+  P(
+    `During a run the verifier restores the newest snapshot into a temporary instance named restorecheck-tmp-<timestamp>, which appears beside the source database (Figure ${nf()}). It is not publicly accessible, only the checker can reach it, and it is deleted at the end of every run.`,
+  ),
+  ...figure(["fig05_rds_live.png"], "Amazon RDS during a run: the temporary restorecheck-tmp-* instance being created beside the source database"),
+
+  H2("Detecting a corrupted backup"),
+  P(
+    `For the corrupt-data scenario, one value in the canary table was changed before the snapshot was taken. The run failed and ended in the red BackupNotVerified state (Figure ${nf()}). The output of the RunIntegrityChecks step (Figure ${nf(2)}) shows why: the instance, connection, tables, row counts and test queries all passed, and only the canary checksum did not match.`,
+  ),
+  ...figure(["fig04_sfn_failed.png"], "AWS Step Functions: the FAILED corrupt-data execution, ending in BackupNotVerified"),
+  ...figure(["fig04b_output_run.png", "fig04c_output_checks.png"], "Output of the RunIntegrityChecks step in the corrupt-data run: canary_checksum failed while every other check passed"),
+
+  H2("Alerting with Amazon SNS"),
+  P(
+    `When a backup fails verification, the verifier publishes a message to an SNS topic, which emails the team (Figure ${nf()}). The message names the backup, the failed check, whether the temporary copy was deleted, and the location of the full report. Healthy runs send nothing.`,
+  ),
+  ...figure(["fig06_alert_email.png"], "The Amazon SNS alert email for the corrupt-data backup"),
+
+  H2("Run history and reports"),
+  P(
+    `Every run adds one item to the DynamoDB results table (Figure ${nf()}), keyed by database and run time, and writes a detailed JSON report to S3 (Figure ${nf(2)}). Together they form a complete audit trail of every verification.`,
+  ),
+  ...figure(["fig07_dynamodb.png"], "Amazon DynamoDB: run history with PASSED, FAILED and ERROR runs"),
+  ...figure(["fig08_s3_report.png"], "Amazon S3: the detailed JSON report of the corrupt-data run"),
+
+  H2("Monitoring with Amazon CloudWatch"),
+  P(
+    `The CloudWatch dashboard (Figure ${nf()}) tracks whether each backup was verified, how long each restore took (the recovery time objective), the number of successful and failed runs, and Lambda errors. The single verifier error near 13:00 is the expected "no snapshot" error of the no-backup scenario, which is how that ERROR is detected.`,
+  ),
+  ...figure(["fig09_dashboard.png"], "Amazon CloudWatch: the restorecheck-backup-health dashboard over the scenario runs (21 October, UTC)"),
+
+  H2("Least-privilege IAM policies"),
+  P(
+    `Each Lambda function has its own custom JSON policy. The verifier's policy (Figure ${nf()}) allows restoring and deleting only instances whose names start with restorecheck-tmp-, and writing only to this stack's table, bucket and topic. The checker's policy (Figure ${nf(2)}) allows little more than attaching to the VPC and logging in to the database as one read-only user.`,
+  ),
+  ...figure(["fig10a_verifier_policy.png", "fig10b_verifier_policy.png", "fig10c_verifier_policy.png"], "AWS IAM: the verifier's custom least-privilege JSON policy"),
+  ...figure(["fig10d_checker_policy.png"], "AWS IAM: the checker's custom JSON policy, allowing database login as one user only"),
+
+  H2("Automated testing"),
+  P(
+    `All 82 automated tests pass (Figure ${nf()}). They run against a local fake of AWS, so the suite is free to run and needs no AWS account (see the Results section).`,
+  ),
+  ...figure(["fig12b_tests_current.png"], "Automated test suite (pytest): 82 tests passed"),
 );
 
 const scenarioRows = results.map((r) => [
@@ -396,7 +455,7 @@ add(
   bullet("**Alerting:** every FAILED and ERROR run produced an SNS email with the failed checks and a link to the full report."),
   H2("Engineering verification"),
   P(
-    `The code is covered by 76 automated tests (pytest), run against an in-process fake of AWS (moto ${c(53)}) and a scripted fake database. Key guarantees were mutation-tested: deliberately removing the teardown call, removing a Catch rule from the workflow, disabling IAM database authentication or the concurrent-run protection each makes the tests fail. The templates pass cfn-lint and the official SAM translator. Testing on AWS also found two real defects, both fixed: the straggler sweep could delete an instance belonging to a concurrent run, and redeploying without the alert-email parameter would silently remove the email subscription.`,
+    `The code is covered by 82 automated tests (pytest), run against an in-process fake of AWS (moto ${c(53)}) and a scripted fake database. Key guarantees were mutation-tested: deliberately removing the teardown call, removing a Catch rule from the workflow, disabling IAM database authentication or the concurrent-run protection each makes the tests fail. The templates pass cfn-lint and the official SAM translator. Testing on AWS also found two real defects, both fixed: the straggler sweep could delete an instance belonging to a concurrent run, and redeploying without the alert-email parameter would silently remove the email subscription.`,
   ),
 );
 
@@ -409,7 +468,7 @@ add(
     "**Limitations.** The prototype verifies one engine (PostgreSQL on RDS) against a synthetic dataset; expectations are a static configuration file; restore time is measured to the nearest minute; and the demo source database accepts connections from a single administrator IP address so that it can be seeded.",
   ),
   P(
-    "**Future work.** Verifying EC2/EBS volume snapshots and other engines; multi-region restore testing; deriving expectations automatically from the source database; using the checker as the validation step of AWS Backup restore testing; moving the schedule to EventBridge Scheduler; and a live version of the dashboard, served from S3 and CloudFront and reading DynamoDB directly.",
+    "**Future work.** Verifying EC2/EBS volume snapshots and other engines; multi-region restore testing; deriving expectations automatically from the source database; using the checker as the validation step of AWS Backup restore testing; moving the schedule to EventBridge Scheduler; and a web interface for browsing the run history.",
   ),
 );
 
