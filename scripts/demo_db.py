@@ -1,6 +1,7 @@
 """Manage the demo source database (the one RestoreCheck verifies).
 
     python scripts/demo_db.py seed                    # (re)create the healthy shop data
+    python scripts/demo_db.py show                    # print what is in it right now
     python scripts/demo_db.py break missing-table     # damage it on purpose (see BREAKS)
     python scripts/demo_db.py snapshot --label broken # take a manual snapshot, wait for it
     python scripts/demo_db.py cleanup-snapshots       # delete the manual demo snapshots
@@ -24,6 +25,7 @@ sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import demo_data  # noqa: E402
+from checks import canary  # noqa: E402
 
 CA_BUNDLE = ROOT / "src" / "certs" / "rds-global-bundle.pem"
 SNAPSHOT_PREFIX = "restorecheck-demo-"
@@ -37,6 +39,7 @@ def parse_args():
     parser.add_argument("--stack-name", default="restorecheck-demo-db")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("seed", help="drop and recreate the healthy demo data")
+    sub.add_parser("show", help="print row counts and the canary rows the corrupt-data break changes")
     breaker = sub.add_parser("break", help="damage the data in one specific way")
     breaker.add_argument("scenario", choices=sorted(demo_data.BREAKS))
     snap = sub.add_parser("snapshot", help="take a manual snapshot and wait until it's ready")
@@ -93,6 +96,51 @@ def seed(db, outputs):
     print(f"  user {VERIFIER_USER}: read-only, IAM authentication only")
 
 
+CANARY_WINDOW = (40, 44)  # rows shown by `show`; corrupt-data changes row 42
+
+
+def format_show(name, counts, canary_rows, checksum):
+    """The `show` report. counts: {table: rows or None if missing}; canary_rows: [(id, payload)]."""
+    expected = dict(canary.ROWS)
+    lines = [f"Database {name}", "", f"  {'Table':<22}{'Rows':>6}"]
+    for table, rows in counts.items():
+        lines.append(f"  {table:<22}{'MISSING' if rows is None else rows:>6}")
+    lines += ["", f"  Canary rows {CANARY_WINDOW[0]}-{CANARY_WINDOW[1]} (the corrupt-data break changes row 42):"]
+    for row_id, payload in canary_rows:
+        mark = "" if expected.get(row_id) == payload else "   <-- CHANGED"
+        lines.append(f"    {row_id:>3}  {payload}{mark}")
+    if checksum is None:
+        lines += ["", "  Canary fingerprint: no canary table"]
+    elif checksum == canary.expected_checksum():
+        lines += ["", f"  Canary fingerprint: {checksum}  (matches: data intact)"]
+    else:
+        lines += ["", f"  Canary fingerprint: {checksum}  (DOES NOT MATCH {canary.expected_checksum()})"]
+    return "\n".join(lines)
+
+
+def show(db, name):
+    cursor = db.cursor()
+    try:
+        cursor.execute("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
+        present = {r[0] for r in cursor.fetchall()}
+        counts = {}
+        for table in demo_data.TABLE_ORDER:
+            if table in present:
+                cursor.execute(f"SELECT count(*) FROM {table}")  # names from our own constant list
+                counts[table] = cursor.fetchone()[0]
+            else:
+                counts[table] = None
+        canary_rows, checksum = [], None
+        if canary.TABLE in present:
+            cursor.execute(f"SELECT id, payload FROM {canary.TABLE} WHERE id BETWEEN %s AND %s ORDER BY id", CANARY_WINDOW)
+            canary_rows = [tuple(r) for r in cursor.fetchall()]
+            cursor.execute(canary.SQL)
+            checksum = cursor.fetchone()[0]
+    finally:
+        cursor.close()
+    print(format_show(name, counts, canary_rows, checksum))
+
+
 def take_snapshot(rds, db_instance_id, label):
     snapshot_id = f"{SNAPSHOT_PREFIX}{label}-{datetime.now(timezone.utc):%Y%m%d-%H%M%S}"
     rds.create_db_snapshot(
@@ -132,6 +180,12 @@ def main():
         finally:
             db.close()
         print("Done. Take a snapshot next: python scripts/demo_db.py snapshot --label healthy")
+    elif args.command == "show":
+        db = connect(session, outputs)
+        try:
+            show(db, f"{outputs['DbInstanceIdentifier']} ({outputs['DbName']})")
+        finally:
+            db.close()
     elif args.command == "break":
         scenario = demo_data.BREAKS[args.scenario]
         db = connect(session, outputs)

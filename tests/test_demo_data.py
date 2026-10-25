@@ -57,3 +57,17 @@ def test_break_scenarios_cover_every_sql_check():
 def test_verifier_user_sql_rejects_unsafe_names():
     with pytest.raises(ValueError):
         demo_data.verifier_user_sql("bob; DROP TABLE x", "appdb")
+
+
+def test_show_marks_changed_canary_rows_and_missing_tables():
+    import demo_db
+    from checks import canary
+
+    rows = [(i, f"restorecheck-canary-{i:03d}") for i in range(40, 45)]
+    healthy = demo_db.format_show("db", {"orders": 250, "order_items": 600}, rows, canary.expected_checksum())
+    broken = demo_db.format_show("db", {"orders": 250, "order_items": None},
+                                 [(42, "tampered") if r[0] == 42 else r for r in rows], "abc")
+
+    assert "CHANGED" not in healthy and "matches: data intact" in healthy
+    assert "42  tampered   <-- CHANGED" in broken
+    assert "MISSING" in broken and "DOES NOT MATCH" in broken
