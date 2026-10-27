@@ -23,7 +23,7 @@ Verify **RDS database backups**:
 ## Future extensions (note, don't build yet)
 - EC2/EBS snapshot verification (server-disk backups).
 - Multi-region restore testing.
-- Live web dashboard (S3 + CloudFront) reading DynamoDB directly. For the course, the GitHub Pages dashboard (`docs/index.html`) shows the exported run history instead (`scripts/export_runs.py` -> `docs/data/runs.json`).
+- Web interface (S3 + CloudFront) reading the run history from DynamoDB. Not part of the course project: the user decided the static GitHub Pages page was not part of the project, and it was removed from the repo (local copies in `docs/` are git-ignored).
 
 ## Tech decisions (and why — the prof may ask)
 - **Language:** Python 3.12 + Boto3 (AWS SDK for Python).
@@ -60,4 +60,4 @@ Verify **RDS database backups**:
 5. CloudWatch metrics/dashboard (done).
 6. Make it AWS-ready: Step Functions orchestration, VPC checker, IAM DB auth (done), plus the items in README "Before the AWS deployment".
 7. Deploy to AWS, run PASSED / FAILED / ERROR scenarios, capture screenshots and a recording, then delete the stack and the source database.
-8. Project website on GitHub Pages (done): dashboard built from the exported run history, plus the "How it works" page; it is the report's "Project demo link".
+8. Report, deck, demo video and dataset (done). The report and the static web page stay local (git-ignored); the report's "Project demo link" is the demo video.

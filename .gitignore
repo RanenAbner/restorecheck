@@ -29,3 +29,11 @@ report/*_with_figures.docx
 
 # Presentation deck and guide (use the local screenshots)
 presentation/
+
+# Kept local only: the report (submitted separately) and the old static web page
+report/
+docs/index.html
+docs/about.html
+docs/assets/
+docs/data/
+docs/.nojekyll

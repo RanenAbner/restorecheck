@@ -98,10 +98,9 @@ Each run ends as **PASSED** (all checks passed), **FAILED** (restored, but a che
 | `src/config.py`, `src/aws_clients.py` | Settings + boto3 client factory (dev mode lives here) |
 | `tests/` | pytest tests, run against an in-process fake of AWS (moto) |
 | `demo/source-db.yaml` | The demo PostgreSQL database RestoreCheck verifies (separate stack) |
-| `scripts/` | `deploy_aws.ps1` / `teardown_aws.ps1`, `demo_db.py` (seed, break, snapshot the demo DB), `run_pipeline.py` (start a run and wait), `run_scenarios.py` (run every demo scenario, write `results/`), `export_runs.py` (run history for the dashboard), `build_site.py` (the "How it works" page), `deploy_local.ps1` (LocalStack) |
-| `docs/` | The project website on GitHub Pages: dashboard (`index.html`, reads `data/runs.json`), "How it works" page (`about.html`), architecture diagram, references |
+| `scripts/` | `deploy_aws.ps1` / `teardown_aws.ps1`, `demo_db.py` (seed, break, snapshot the demo DB), `run_pipeline.py` (start a run and wait), `run_scenarios.py` (run every demo scenario, write `results/`), `export_runs.py` (export the run history as JSON, account details removed), `build_site.py` (a static summary page of the results), `deploy_local.ps1` (LocalStack) |
+| `docs/` | Architecture diagram (`architecture.drawio`) and the references list |
 | `dataset/` | The demo dataset for publishing (CSV tables, expectations, scenario results); built by `scripts/export_dataset.py` |
-| `report/` | The DA-III report (`RestoreCheck_DA3_Report.docx`) and its generator (`cd report && npm install && node build_report.js`) |
 | `docker-compose.yml` | Starts LocalStack (optional) |
 
 ## Development
@@ -150,15 +149,11 @@ python scripts/run_pipeline.py --aws --source-db ghost-db   # -> ERROR (no backu
 .\scripts\teardown_aws.ps1                              # delete everything afterwards
 ```
 
-Or run every scenario in one go (about an hour) and get a results table in `results/scenarios.md`, then refresh the website (the dashboard's run history and the "How it works" page):
+Or run every scenario in one go (about an hour) and get a results table in `results/scenarios.md`:
 
 ```powershell
 python scripts/run_scenarios.py
-python scripts/export_runs.py --aws --profile restorecheck
-python scripts/build_site.py
 ```
-
-**Dashboard.** https://ranenabner.github.io/restorecheck/ shows every recorded run: the latest result, restore times, which check caught each broken backup, and each run's full report. It is a static page reading `docs/data/runs.json`, which `export_runs.py` builds from the DynamoDB history and the S3 reports with account details removed, so it keeps working after the AWS stack is deleted. Preview it locally with `python -m http.server -d docs`.
 
 Each break scenario makes a different check fail: `missing-table` → `tables_present`, `truncated-table` → `row_counts`, `corrupt-data` → `canary_checksum`, `orphaned-rows` → `test_queries`. `demo_db.py seed` repairs the data.
 
@@ -169,4 +164,4 @@ Each break scenario makes a different check fail: `missing-table` → `tables_pr
 - **SDG 11 (Sustainable Cities and Communities)** — strengthens disaster recovery for essential services.
 
 ## Status
-MVP in development. Future work: EC2/EBS disk-backup verification, multi-region restore testing, a live version of the dashboard (S3 + CloudFront, reading DynamoDB directly).
+MVP in development. Future work: EC2/EBS disk-backup verification, multi-region restore testing, a web interface for browsing the run history.
