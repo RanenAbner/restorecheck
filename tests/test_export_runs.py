@@ -22,7 +22,7 @@ REPORT = {
     "snapshot_time": "2026-10-21T12:40:58+00:00",
     "checks": [
         {"name": "instance_available", "passed": True,
-         "detail": "postgres 17.9 available at restorecheck-tmp-1.cfg4o8mow6yt.ap-southeast-2.rds.amazonaws.com:5432"},
+         "detail": "postgres 17.9 available at restorecheck-tmp-1.abcd1234efgh.ap-southeast-2.rds.amazonaws.com:5432"},
         {"name": "canary_checksum", "passed": False, "detail": "checksum abc does not match expected def"},
     ],
 }
@@ -30,16 +30,16 @@ REPORT = {
 
 def test_account_details_are_masked():
     text = (
-        "arn:aws:states:ap-southeast-2:751597036307:execution:sm:run-1 "
-        "s3://restorecheck-reportsbucket-wgxnqsmqbfyf/reports/x.json "
-        "db.cfg4o8mow6yt.ap-southeast-2.rds.amazonaws.com account 751597036307"
+        "arn:aws:states:ap-southeast-2:123456789012:execution:sm:run-1 "
+        "s3://restorecheck-reportsbucket-examplebucket/reports/x.json "
+        "db.abcd1234efgh.ap-southeast-2.rds.amazonaws.com account 123456789012"
     )
 
     masked = export_runs.mask(text)
 
-    assert "751597036307" not in masked
-    assert "wgxnqsmqbfyf" not in masked
-    assert "cfg4o8mow6yt" not in masked
+    assert "123456789012" not in masked
+    assert "examplebucket" not in masked
+    assert "abcd1234efgh" not in masked
     assert "arn:aws:states:ap-southeast-2:<account>:execution" in masked
     assert "db.<id>.ap-southeast-2.rds.amazonaws.com" in masked
 
@@ -73,7 +73,7 @@ def test_build_sorts_runs_and_merges_report_details():
     assert [r["run_timestamp"] for r in runs] == [
         "2026-10-21T12:43:43Z", "2026-10-21T13:00:00Z", "2026-10-22T00:00:00Z"]
     assert runs[0]["checks"][1]["passed"] is False
-    assert "cfg4o8mow6yt" not in json.dumps(data)
+    assert "abcd1234efgh" not in json.dumps(data)
     assert runs[1]["restore_seconds"] is None and runs[1]["teardown_ok"] is None
     assert runs[2]["report_available"] is False and runs[2]["checks"] == []
 
