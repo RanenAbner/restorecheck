@@ -2,6 +2,8 @@
 
 **Automated Backup Verification & Disaster-Recovery Testing on AWS**
 
+**Demo video:** [Google Drive](https://drive.google.com/drive/folders/1tPKnf1VMBOlKvVCNThrKWxlfon6yiSxA?usp=sharing) · **Dataset:** [doi:10.5281/zenodo.23772930](https://doi.org/10.5281/zenodo.23772930)
+
 ## The problem
 AWS storage services guarantee extremely high **durability** (Amazon S3 and AWS Backup advertise up to 99.999999999% — "11 nines"). But durability only means your stored bytes won't be lost or physically corrupted. It says nothing about whether a backup can actually be **restored** into a working system.
 

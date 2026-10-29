@@ -6,7 +6,8 @@ recoverability verification system on AWS (https://github.com/RanenAbner/restore
 **Authors:** Ranen Abner, Sai Charan, and S. Vigneshwari (Vellore Institute of Technology).
 
 **Cite as:** Ranen Abner, Sai Charan, and S. Vigneshwari, "RestoreCheck demo dataset:
-synthetic shop database and backup-verification scenario results," Zenodo, 2026.
+synthetic shop database and backup-verification scenario results," Zenodo, 2026,
+doi: 10.5281/zenodo.23772930. https://doi.org/10.5281/zenodo.23772930
 
 ## Contents
 | File | Description |
